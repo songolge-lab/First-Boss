@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reverse Boss Game</title>
+    <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="encounter-overlay" class="hidden">
+        <h2>Nemesis Encounter</h2>
+        <div class="stat-row" id="stat-hp">HP: --</div>
+        <div class="stat-row" id="stat-speed">SPEED: --</div>
+        <div class="stat-row" id="stat-ability">NEW ABILITY: --</div>
+        <div id="countdown">Respawning in 3...</div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

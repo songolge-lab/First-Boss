@@ -16,7 +16,7 @@ body {
     height: 100vh;
 }
 
-/* UI Overlay */
+/* Nemesis Encounter Overlay — Glassmorphism */
 #encounter-overlay {
     position: absolute;
     top: 50%;
@@ -24,16 +24,17 @@ body {
     transform: translate(-50%, -50%);
     width: 400px;
     padding: 30px;
-    
+
     background: rgba(20, 20, 30, 0.7);
     backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
     color: white;
     text-align: center;
-    
+
     transition: opacity 0.3s ease, transform 0.3s ease;
     z-index: 100;
 }

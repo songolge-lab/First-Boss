@@ -2,12 +2,14 @@ export class Enemy {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.radius = 15;
+        this.size = 30;
+        this.radius = this.size / 2; // used for circle-based collision tests
         this.color = '#33ccff';
         this.speed = 3;
     }
 
     update(targetX, targetY) {
+        // Basic pathfinding: compute the vector toward the Player and step along it.
         const dx = targetX - this.x;
         const dy = targetY - this.y;
         const dist = Math.hypot(dx, dy);
@@ -19,15 +21,10 @@ export class Enemy {
     }
 
     draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.closePath();
-        
         ctx.shadowBlur = 10;
         ctx.shadowColor = this.color;
-        ctx.fill();
+        ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
         ctx.shadowBlur = 0;
     }
 }

@@ -21,7 +21,7 @@ function resize() {
 window.addEventListener('resize', resize);
 
 let input, camera, player, enemy, uiManager;
-let gameState = 'PLAYING'; // 'PLAYING', 'RESPAWNING'
+let gameState = 'PLAYING';
 let lastTime = 0;
 
 function init() {
@@ -30,38 +30,39 @@ function init() {
     player = new Player(0, 0);
     camera = new Camera(0, 0, width, height);
     uiManager = new UIManager();
-    
+
     spawnEnemy();
-    
     requestAnimationFrame(gameLoop);
 }
 
 function spawnEnemy() {
-    // Spawn enemy at map's edge (relative to player viewport for now)
     const angle = Math.random() * Math.PI * 2;
     const spawnDist = Math.max(width, height);
-    enemy = new Enemy(player.x + Math.cos(angle) * spawnDist, player.y + Math.sin(angle) * spawnDist);
+    enemy = new Enemy(
+        player.x + Math.cos(angle) * spawnDist,
+        player.y + Math.sin(angle) * spawnDist
+    );
 }
 
-function drawGrid(ctx, camera) {
+function drawGrid(ctx, cam) {
     const gridSize = 100;
-    const startX = Math.floor(camera.x / gridSize) * gridSize;
-    const startY = Math.floor(camera.y / gridSize) * gridSize;
-    
+    const startX = Math.floor(cam.x / gridSize) * gridSize;
+    const startY = Math.floor(cam.y / gridSize) * gridSize;
+
     ctx.strokeStyle = '#2a2a35';
     ctx.lineWidth = 2;
-    
+
     for (let x = startX; x < startX + width + gridSize; x += gridSize) {
         ctx.beginPath();
-        ctx.moveTo(x, camera.y);
-        ctx.lineTo(x, camera.y + height);
+        ctx.moveTo(x, cam.y);
+        ctx.lineTo(x, cam.y + height);
         ctx.stroke();
     }
-    
+
     for (let y = startY; y < startY + height + gridSize; y += gridSize) {
         ctx.beginPath();
-        ctx.moveTo(camera.x, y);
-        ctx.lineTo(camera.x + width, y);
+        ctx.moveTo(cam.x, y);
+        ctx.lineTo(cam.x + width, y);
         ctx.stroke();
     }
 }
@@ -77,52 +78,43 @@ function gameLoop(timestamp) {
 }
 
 function update(dt) {
-    if (gameState === 'PLAYING') {
-        const inputAxis = input.getAxis();
-        player.update(inputAxis);
-        
-        camera.update(player.x, player.y);
-        enemy.update(player.x, player.y);
+    if (gameState !== 'PLAYING') return;
 
-        // Check collision
-        if (distance(player.x, player.y, enemy.x, enemy.y) < player.radius + enemy.radius) {
-            handleCollision();
-        }
+    player.update(input.getAxis());
+    camera.update(player.x, player.y);
+    enemy.update(player.x, player.y);
+
+    if (distance(player.x, player.y, enemy.x, enemy.y) < player.radius + enemy.radius) {
+        handleCollision();
     }
 }
 
 function handleCollision() {
     gameState = 'RESPAWNING';
-    
+
     const mockData = {
-        oldHp: 100,
-        newHp: 150,
-        oldSpeed: 3.0,
-        newSpeed: 3.0,
+        oldHp: 100, newHp: 150,
+        oldSpeed: 3.0, newSpeed: 3.0,
         newAbility: 'Dash'
     };
-    
+
     uiManager.showEncounterOverlay(mockData, 3000);
-    
+
     setTimeout(() => {
         uiManager.hideEncounterOverlay();
-        spawnEnemy(); // Respawn enemy
+        spawnEnemy();
         gameState = 'PLAYING';
     }, 3000);
 }
 
 function draw() {
-    // Clear screen
-    ctx.fillStyle = '#111116'; // Deep dark background
+    ctx.fillStyle = '#111116';
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
     camera.apply(ctx);
 
-    // Draw world (grid)
     drawGrid(ctx, camera);
-
-    // Draw entities
     enemy.draw(ctx);
     player.draw(ctx);
 

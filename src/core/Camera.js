@@ -12,7 +12,6 @@ export class Camera {
     update(targetX, targetY) {
         const desiredX = targetX - this.viewportWidth / 2;
         const desiredY = targetY - this.viewportHeight / 2;
-
         this.x = lerp(this.x, desiredX, this.lerpSpeed);
         this.y = lerp(this.y, desiredY, this.lerpSpeed);
     }

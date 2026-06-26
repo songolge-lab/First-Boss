@@ -1,26 +1,16 @@
 export class Input {
     constructor() {
         this.keys = {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            ArrowUp: false,
-            ArrowLeft: false,
-            ArrowDown: false,
-            ArrowRight: false
+            w: false, a: false, s: false, d: false,
+            ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
         };
 
         window.addEventListener('keydown', (e) => {
-            if (this.keys.hasOwnProperty(e.key)) {
-                this.keys[e.key] = true;
-            }
+            if (e.key in this.keys) this.keys[e.key] = true;
         });
 
         window.addEventListener('keyup', (e) => {
-            if (this.keys.hasOwnProperty(e.key)) {
-                this.keys[e.key] = false;
-            }
+            if (e.key in this.keys) this.keys[e.key] = false;
         });
     }
 
@@ -32,11 +22,10 @@ export class Input {
         if (this.keys.a || this.keys.ArrowLeft) x -= 1;
         if (this.keys.d || this.keys.ArrowRight) x += 1;
 
-        // Normalize
         if (x !== 0 && y !== 0) {
-            const length = Math.sqrt(x * x + y * y);
-            x /= length;
-            y /= length;
+            const len = Math.SQRT1_2;
+            x *= len;
+            y *= len;
         }
 
         return { x, y };

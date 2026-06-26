@@ -7,11 +7,10 @@ export class UIManager {
         this.countdownText = document.getElementById('countdown');
     }
 
-    showEncounterOverlay(heroStatsMock, durationMs) {
-        // Set mock data
-        this.hpText.innerText = `HP: ${heroStatsMock.oldHp} -> ${heroStatsMock.newHp} (+${heroStatsMock.newHp - heroStatsMock.oldHp})`;
-        this.speedText.innerText = `SPEED: ${heroStatsMock.oldSpeed} -> ${heroStatsMock.newSpeed} (${heroStatsMock.newSpeed - heroStatsMock.oldSpeed})`;
-        this.abilityText.innerText = `NEW ABILITY: ${heroStatsMock.newAbility}`;
+    showEncounterOverlay(heroStats, durationMs) {
+        this.hpText.innerText = `HP: ${heroStats.oldHp} → ${heroStats.newHp} (+${heroStats.newHp - heroStats.oldHp})`;
+        this.speedText.innerText = `SPEED: ${heroStats.oldSpeed} → ${heroStats.newSpeed}`;
+        this.abilityText.innerText = `NEW ABILITY: ${heroStats.newAbility}`;
 
         this.overlay.classList.remove('hidden');
         this.overlay.classList.add('visible');

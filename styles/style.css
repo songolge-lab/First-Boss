@@ -61,13 +61,96 @@ body {
 
 .stat-row {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 15px 0;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin: 12px 0;
     font-size: 18px;
     background: rgba(255, 255, 255, 0.05);
-    padding: 10px;
+    padding: 10px 14px;
     border-radius: 8px;
+}
+
+.stat-row .stat-label {
+    color: #cfcfe0;
+    letter-spacing: 1px;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.stat-row .stat-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+/* Signed delta chip (e.g. "+157  +44.5%") */
+.stat-delta {
+    margin-left: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-delta.up   { color: #5ce08a; }   /* hero grew stronger */
+.stat-delta.down { color: #ff6b6b; }   /* hero weakened (unused by current data) */
+.stat-delta.flat { color: #8a8a9a; }   /* no change (e.g. speed at hard cap) */
+
+/* "NEW ABILITY" row hides itself when no mechanic unlocks this encounter */
+#stat-ability {
+    justify-content: center;
+    color: #66ddff;
+    font-size: 15px;
+    letter-spacing: 1px;
+}
+
+/* Legendary drop banner — gold, highlighted, attention-grabbing */
+#legendary-banner {
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(255, 196, 0, 0.18), rgba(255, 140, 0, 0.12));
+    border: 1px solid rgba(255, 196, 0, 0.55);
+    box-shadow: 0 0 22px rgba(255, 176, 0, 0.35);
+    animation: legendary-pulse 1.4s ease-in-out infinite;
+}
+
+#legendary-banner .legendary-title {
+    display: block;
+    color: #ffd24a;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+#legendary-banner .legendary-name {
+    display: block;
+    color: #ffe9a8;
+    font-size: 19px;
+    font-weight: 700;
+}
+
+#legendary-banner .legendary-effects {
+    display: block;
+    color: #f0d28a;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+/* When a legendary drops, give the whole overlay a golden frame */
+#encounter-overlay.legendary {
+    border-color: rgba(255, 196, 0, 0.5);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 36px rgba(255, 176, 0, 0.25);
+}
+
+@keyframes legendary-pulse {
+    0%, 100% { box-shadow: 0 0 18px rgba(255, 176, 0, 0.30); }
+    50%      { box-shadow: 0 0 30px rgba(255, 176, 0, 0.55); }
+}
+
+#legendary-banner.hidden,
+#stat-ability.hidden {
+    display: none;
 }
 
 #countdown {

@@ -2,21 +2,32 @@
 
 ## Core Premise
 
-The **Player is the Final Boss**. The AI-controlled **Hero** is the one who resurrects, scales up, and becomes increasingly dangerous over 30 encounters. The player (Boss) must survive an ever-growing threat using movement, positioning, and contact damage (50 per touch). The Boss has 1000 HP and a top speed of 10.0.
+The game is a **2D side-scrolling platformer with gravity** (think *Hollow Knight*), **not** a top-down game.
+
+The **Player is the Final Boss**. The AI-controlled **Hero** is the one who resurrects, scales up, and becomes increasingly dangerous over 30 encounters. The player (Boss) must survive an ever-growing threat using horizontal movement, jumping, positioning, and contact damage (50 per touch). The Boss has 1000 HP and a top horizontal speed of 10.0.
 
 ## Tech Stack
 
 - **Pure Vanilla JS** + HTML5 Canvas — no frameworks, no build tools
 - **Modular ES6** imports (`type="module"` in index.html)
 - **File structure:**
-  - `src/main.js` — game loop, collision, state machine (`PLAYING` / `RESPAWNING`)
-  - `src/entities/Player.js` — the Boss (player-controlled, WASD/Arrows)
-  - `src/entities/Enemy.js` — the Hero (AI, pathfinds toward Boss)
-  - `src/core/Input.js` — keyboard axis with diagonal normalization
-  - `src/core/Camera.js` — lerp-follow camera
+  - `src/main.js` — game loop, world/floor geometry, gravity & ground collision, collision, state machine (`PLAYING` / `RESPAWNING`)
+  - `src/entities/Player.js` — the Boss (player-controlled: A/D or ←/→ to move, Space/W/↑ to jump; gravity + jump physics)
+  - `src/entities/Enemy.js` — the Hero (AI, gravity-bound, chases the Boss horizontally along the ground)
+  - `src/core/Input.js` — horizontal movement axis + edge-detected jump
+  - `src/core/Camera.js` — side-scroll lerp-follow camera with a stable floor horizon
   - `src/ui/UIManager.js` — Nemesis overlay DOM manipulation
   - `src/utils/math.js` — `lerp()`, `distance()`
   - `styles/style.css` — glassmorphism overlay, dark theme
+
+## Platformer Physics
+
+- The world is a wide arena (`WORLD_WIDTH`) with a single solid **floor** rectangle across the bottom (`floor` in `main.js`). Invisible side walls clamp entities to the world bounds.
+- Both the Boss and the Hero have `velocityX`, `velocityY`, `gravity`, and `isGrounded`. The Boss additionally has `jumpForce`.
+- **Gravity** is applied every frame in each entity's `update()`; the Boss uses stronger gravity while falling (`gravity * 1.4`) for a snappy, non-floaty feel.
+- **Jumping** is only permitted when `isGrounded` is `true`. Jump height is variable: releasing the jump key mid-rise cuts upward velocity (short hops vs. full hops).
+- **Ground detection** is basic AABB in `main.js` (`resolveFloorCollision`): when an entity's feet reach the floor surface it snaps to the floor, zeroes `velocityY`, and sets `isGrounded = true`.
+- The camera follows the Boss horizontally and anchors the floor low on screen so the horizon stays stable during jumps.
 
 ## Balancing Rules (from `hero_progression_matrix.json`)
 
@@ -60,12 +71,25 @@ The respawn overlay **must** be driven by `stat_delta` (signed numeric diff) and
 
 ## Current State
 
-The codebase has a working game loop with:
-- Player (Boss) movement with physics (acceleration, friction, speed capping)
-- Enemy (Hero) with basic pathfinding toward the player
-- Collision detection triggering the Nemesis overlay with mock data
-- Camera with lerp smoothing
+The codebase has a working **2D platformer** game loop with:
+- A solid floor and gravity; entities fall and land instead of floating
+- Player (Boss) horizontal movement (acceleration, friction, speed capping) plus grounded-only jumping with variable jump height
+- Enemy (Hero) that obeys gravity and chases the Boss horizontally along the ground
+- AABB ground detection in `main.js` setting `isGrounded`, plus world-bound side-wall clamping
+- Side-scrolling camera with a stable floor horizon
+- **HP/Damage combat (Mutual-Contact Trade) is now implemented:** the Boss has an
+  HP pool (1000) and `contactDamage` (50); the Hero has its encounter-scaled HP and
+  `attackDamage`. On AABB overlap both fighters deal damage to each other in a single
+  exchange. Floating health bars are drawn above both entities.
+- **Knockback + i-frames are implemented:** on a hit both fighters bounce apart
+  (reversed horizontal velocity + slight upward pop, with a brief stun on the Hero so
+  pursuit doesn't cancel it). The Boss gets ~500ms of i-frames plus a white hit-flash,
+  which gates the trade so a sustained overlap can't drain HP every frame.
+- Combat outcomes: the Nemesis overlay / resurrection only fires when the Hero's HP
+  hits 0; when the Boss's HP hits 0 the game pauses on a `GAMEOVER` state and renders a
+  basic "GAME OVER — HERO WINS" banner (to be polished later).
 - The progression matrix exists (30 encounters) but is **not yet integrated** into gameplay
 - `handleCollision()` in main.js still uses hardcoded mockData instead of reading from the matrix
 - Enemy does not scale stats between encounters
 - No mechanic system (dash, projectiles, etc.) is implemented yet
+- The Hero does not yet jump or pursue the Boss vertically (`targetY` is reserved for this)

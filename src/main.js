@@ -207,7 +207,7 @@ const states = {
             input.consumeDash();
         },
         update() {
-            // Player can only move/jump/dash here: player.update is gated to PLAYING.
+            // Player can only move/jump/dash/attack here: player.update is gated to PLAYING.
             player.update(input);
             enemy.update(player.x, player.y);
 
@@ -217,10 +217,11 @@ const states = {
             clampToWorld(player);
             clampToWorld(enemy);
 
-            // Mutual-Contact Trade: resolve combat whenever the Boss and Hero overlap.
-            if (entitiesIntersect(player, enemy)) {
-                handleCombat();
-            }
+            // Weapon-based combat, resolved EVERY PLAYING frame. (Changed from the
+            // old "only when bodies overlap" gate: weapon hitboxes reach BEYOND the
+            // bodies, so combat must be evaluated every frame. handleCombat() does
+            // the body-overlap test itself for the contact rule.)
+            handleCombat();
         },
     },
 
@@ -311,21 +312,59 @@ function entitiesIntersect(a, b) {
            Math.abs(a.y - b.y) < a.halfHeight + b.halfHeight;
 }
 
-// Mutual-Contact Trade: both fighters take damage and bounce apart on contact.
-// The Boss's i-frame window gates the exchange — while it's still ticking the
-// trade is skipped, so a sustained overlap can't drain HP every frame.
+// Weapon-based, ASYMMETRICAL combat. Resolved every PLAYING frame.
+//
+//   (a) Boss weapon hitbox  vs Hero body  -> Hero takes damage.
+//   (b) Hero weapon hitbox  vs Boss body  -> Boss takes damage.
+//   (c) Boss body           vs Hero body  -> ONLY the Hero takes contact damage;
+//                                            the Boss is IMMUNE to body contact.
+//
+// Each swing damages a given target at most once (Hitbox._hitSet via hasHit/
+// markHit). The Hero's dodge i-frames and the Boss's post-hit i-frames gate
+// their respective incoming hits, so a multi-frame swing or a sustained body
+// overlap can't drain HP every frame.
 function handleCombat() {
-    if (player.iFrames > 0) return;
+    // Let the Hero react to the Boss's swing FIRST, so a well-timed dodge (which
+    // grants i-frames) can slip the strike on the same frame it would land.
+    enemy.tryDodge(player);
 
-    // Push each fighter away from the other.
-    const bossDir = Math.sign(player.x - enemy.x) || 1; // Boss bounces this way
-    const heroDir = -bossDir;                            // Hero bounces the other way
+    let enemyTookWeaponHit = false;
 
-    enemy.takeDamage(player.contactDamage, heroDir);
-    player.takeDamage(enemy.attackDamage, bossDir);
+    // (a) Boss's slash vs the Hero's body -> Hero takes damage + knockback.
+    const bossSlash = player.attackHitbox;
+    if (bossSlash.overlaps(enemy) && !bossSlash.hasHit(enemy)) {
+        const dir = Math.sign(enemy.x - player.x) || player.facing; // push Hero away
+        if (enemy.takeDamage(bossSlash.damage, dir)) {
+            bossSlash.markHit(enemy);
+            enemyTookWeaponHit = true;
+        }
+        // If blocked by the Hero's dodge i-frames the swing simply whiffs; we
+        // don't mark it, so it can still connect later in its active window.
+    }
 
-    // Resolve the outcome of the trade. Landing the killing blow wins the
-    // encounter for the Boss even if the same trade would have been lethal.
+    // (b) Hero's slash vs the Boss's body -> Boss takes damage + knockback.
+    const heroSlash = enemy.attackHitbox;
+    if (heroSlash.overlaps(player) && !heroSlash.hasHit(player)) {
+        const dir = Math.sign(player.x - enemy.x) || -enemy.facing; // push Boss away
+        if (player.takeDamage(heroSlash.damage, dir)) {
+            heroSlash.markHit(player);
+        }
+    }
+
+    // (c) Body-vs-body -> ONLY the Hero takes contact damage; the Boss is immune
+    // (it is NEVER passed to a takeDamage call here). Gated by the Hero's knockback
+    // / i-frames, and skipped if the Boss's slash already hit this frame, so a
+    // sustained overlap can't stack with the weapon hit or drain HP every frame.
+    if (!enemyTookWeaponHit &&
+        enemy.knockbackTimer <= 0 &&
+        enemy.iFrames <= 0 &&
+        entitiesIntersect(player, enemy)) {
+        const dir = Math.sign(enemy.x - player.x) || player.facing;
+        enemy.takeDamage(player.contactDamage, dir);
+    }
+
+    // Resolve the outcome. Landing the killing blow wins the encounter for the
+    // Boss even if the same exchange would have been lethal.
     if (enemy.hp <= 0) {
         handleEnemyDefeated();
     } else if (player.hp <= 0) {

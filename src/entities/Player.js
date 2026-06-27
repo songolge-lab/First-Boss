@@ -1,3 +1,19 @@
+// src/entities/Player.js
+import { Hitbox } from '../core/Hitbox.js';
+
+// Sword tuning. Frame-based to match the existing per-frame physics (~60fps).
+// Heavy + committed: a real cooldown between slashes so positioning matters
+// (in the spirit of the Hollow-Knight-ish "weighty" combat in CLAUDE.md).
+const SWORD = Object.freeze({
+    REACH_PX: 40,        // hitbox center distance from the Boss center (in facing dir)
+    WIDTH: 48,           // hitbox full width
+    HEIGHT: 56,          // hitbox full height (a touch taller than the body)
+    DURATION_FRAMES: 12, // active frames of the slash (~0.20s)
+    COOLDOWN_FRAMES: 38, // ~0.63s between slashes
+    DAMAGE: 50,          // carried over from the old contactDamage value
+    KNOCKBACK: 10,       // horizontal knockback dealt to whatever it hits
+});
+
 export class Player {
     constructor(x, y) {
         this.x = x;
@@ -35,14 +51,32 @@ export class Player {
         this.dashCooldownTime = 120; // ~2s at 60fps
         this.dashCooldown = 0;       // counts down until the dash is ready again
 
-        // --- Combat (Mutual-Contact Trade) ---
+        // --- Combat (weapon-based) ---
         this.maxHp = 1000;
         this.hp = 1000;
-        this.contactDamage = 50;  // damage dealt to the Hero on contact
+
+        // Body-contact damage the Boss deals TO the Hero on overlap. The Boss is
+        // immune to body contact itself (enforced in main.js handleCombat rule c);
+        // this value is the damage the Hero soaks for bumping into the Boss.
+        this.contactDamage = 50;
+
+        // Directional sword slash (J / Left Click): a transient hitbox spawned in
+        // the facing direction. Damage comes from THIS, not from body overlap.
+        this.attackHitbox = new Hitbox({
+            reach: SWORD.REACH_PX,
+            width: SWORD.WIDTH,
+            height: SWORD.HEIGHT,
+            duration: SWORD.DURATION_FRAMES,
+            cooldown: SWORD.COOLDOWN_FRAMES,
+            damage: SWORD.DAMAGE,
+            knockback: SWORD.KNOCKBACK,
+        });
+        this._attackQueued = false; // edge-detected attack press, consumed in update()
+        this._installAttackInput();
 
         // Invulnerability window: after taking a hit the Boss ignores further
-        // damage for a short time so a single overlap can't drain HP every frame.
-        // Counted in frames (~60fps), so ~30 frames ≈ 500ms.
+        // damage for a short time so one of the Hero's swings can't drain HP every
+        // frame. Counted in frames (~60fps), so ~30 frames ≈ 500ms.
         this.iFrames = 0;
         this.iFrameDuration = 30;
 
@@ -55,15 +89,45 @@ export class Player {
         this.knockbackLift = 8;
     }
 
+    // Self-contained attack input so NO changes to Input.js are required:
+    // 'J' on the keyboard, or a left-click on the game canvas, queues one slash.
+    // (If you'd rather route this through your Input class for consistency, add an
+    //  `consumeAttack()` there and swap _consumeAttack() below to call it.)
+    _installAttackInput() {
+        if (typeof window === 'undefined') return;
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyJ') this._attackQueued = true;
+        });
+        window.addEventListener('mousedown', (e) => {
+            // Left button, and only when the click lands on the canvas (so clicking
+            // the DOM Nemesis overlay doesn't trigger a swing).
+            if (e.button === 0 && e.target && e.target.tagName === 'CANVAS') {
+                this._attackQueued = true;
+            }
+        });
+    }
+
+    _consumeAttack() {
+        if (this._attackQueued) { this._attackQueued = false; return true; }
+        return false;
+    }
+
     update(input) {
-        // --- Tick down combat + ability timers (i-frames, hit flash, dash CD) ---
+        // --- Tick combat + ability timers (i-frames, hit flash, dash CD, weapon CD/active) ---
         if (this.iFrames > 0) this.iFrames--;
         if (this.hitFlash > 0) this.hitFlash--;
         if (this.dashCooldown > 0) this.dashCooldown--;
+        this.attackHitbox.tick();
 
-        // --- Track facing from horizontal input (drives the dash direction) ---
+        // --- Track facing from horizontal input (drives the dash AND slash direction) ---
         const dir = input.getHorizontal();
         if (dir !== 0) this.facing = dir;
+
+        // --- Melee slash: spawn a hitbox in the facing direction (off cooldown) ---
+        // Allowed in every movement state (including mid-dash) so a dash-slash works.
+        if (this._consumeAttack()) {
+            this.attackHitbox.trigger();
+        }
 
         // --- Dash trigger: a fast burst in the facing direction, off cooldown ---
         if (input.consumeDash() && this.dashCooldown <= 0 && this.dashTimer <= 0) {
@@ -78,6 +142,7 @@ export class Player {
             this.dashTimer--;
             this.velocityY = 0;
             this.x += this.velocityX;
+            this.attackHitbox.reposition(this.x, this.y, this.facing); // keep the slash glued on
             return; // skip normal movement + gravity while dashing
         }
 
@@ -111,12 +176,15 @@ export class Player {
         const g = this.velocityY > 0 ? this.gravity * 1.4 : this.gravity;
         this.velocityY += g;
         this.y += this.velocityY;
+
+        // --- Keep the slash hitbox glued in front of the Boss after moving ---
+        this.attackHitbox.reposition(this.x, this.y, this.facing);
     }
 
     /**
      * Take a hit. Honors the i-frame window: while invulnerable the hit is
-     * ignored entirely (no HP loss, no re-knockback), which is what stops a
-     * single overlap from draining HP every frame.
+     * ignored entirely (no HP loss, no re-knockback), which is what stops one of
+     * the Hero's swings from draining HP every frame.
      *
      * @param {number} amount       damage to apply
      * @param {number} knockbackDir -1 / +1 horizontal push direction (away from
@@ -153,7 +221,53 @@ export class Player {
         ctx.shadowBlur = 0;
         ctx.closePath();
 
+        this.drawSwordSwing(ctx); // golden crescent during an active slash
         this.drawHealthBar(ctx);
+    }
+
+    // Golden crescent sword swing, shown while the slash hitbox is active. The
+    // crescent sweeps downward through the swing and mirrors with `facing`.
+    drawSwordSwing(ctx) {
+        const hb = this.attackHitbox;
+        if (!hb.isActive) return;
+
+        const t = hb.swingProgress;                   // 0..1 across the active frames
+        const swing = -Math.PI * 0.55 + Math.PI * t;  // sweep ~100°, top -> bottom
+        const pop = Math.sin(Math.PI * t);            // fade in/out at the extremes
+
+        const outerR = this.radius + 38;
+        const innerR = this.radius + 14;
+        const halfArc = Math.PI * 0.30;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(this.facing, 1); // mirror to the facing direction
+        ctx.rotate(swing);
+        ctx.globalAlpha = 0.35 + 0.65 * pop;
+
+        const grad = ctx.createRadialGradient(0, 0, innerR, 0, 0, outerR);
+        grad.addColorStop(0, 'rgba(255, 210, 40, 0.10)');
+        grad.addColorStop(1, 'rgba(255, 232, 120, 0.95)');
+
+        // Crescent body (annular sector).
+        ctx.beginPath();
+        ctx.arc(0, 0, outerR, -halfArc, halfArc);
+        ctx.arc(0, 0, innerR, halfArc, -halfArc, true);
+        ctx.closePath();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = 'rgba(255, 200, 50, 0.9)';
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Bright leading edge of the blade.
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255, 255, 230, 0.9)';
+        ctx.beginPath();
+        ctx.arc(0, 0, outerR, -halfArc, halfArc);
+        ctx.stroke();
+
+        ctx.restore(); // restores alpha / shadow / transform
     }
 
     // Floating HP bar above the Boss (drawn in world space, under the camera transform).

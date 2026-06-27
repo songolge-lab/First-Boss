@@ -1,4 +1,4 @@
-// src/combat/Hitbox.js
+// src/core/Hitbox.js
 // ---------------------------------------------------------------------------
 // A directional, temporary weapon hitbox — the core primitive of the weapon-
 // based combat model. It is OWNED and driven by an entity (the Boss or the

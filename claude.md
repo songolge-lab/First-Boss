@@ -4,7 +4,13 @@
 
 The game is a **2D side-scrolling platformer with gravity** (think *Hollow Knight*), **not** a top-down game.
 
-The **Player is the Final Boss**. The AI-controlled **Hero** is the one who resurrects, scales up, and becomes increasingly dangerous over 30 encounters. The player (Boss) must survive an ever-growing threat using horizontal movement, jumping, positioning, and contact damage (50 per touch). The Boss has 1000 HP and a top horizontal speed of 10.0.
+The **Player is the Final Boss**. The AI-controlled **Hero** is the one who resurrects, scales up, and becomes increasingly dangerous over 30 encounters. The player (Boss) must survive an ever-growing threat using horizontal movement, jumping, positioning, **directional weapon strikes** (Sword/Scythe slashes), and **reactive dodge rolls**. The Boss has 1000 HP and a top horizontal speed of 10.0.
+
+## Theme & Aesthetic
+
+- **Dark Fantasy / Medieval Action** aesthetic, in the vein of *Hollow Knight* — moody, atmospheric, and weighty.
+- Combat should **feel heavy and physical**: weapon strikes have wind-up, commitment, and impact rather than instant, weightless taps.
+- **UI styling is intentionally flexible right now** — don't over-invest in visual chrome (overlay theme, fonts, colors). The current glassmorphism/dark overlay in `styles/style.css` is a placeholder and is expected to change. Spend effort on **gameplay feel**, not UI polish.
 
 ## Tech Stack
 
@@ -29,6 +35,14 @@ The **Player is the Final Boss**. The AI-controlled **Hero** is the one who resu
 - **Ground detection** is basic AABB in `main.js` (`resolveFloorCollision`): when an entity's feet reach the floor surface it snaps to the floor, zeroes `velocityY`, and sets `isGrounded = true`.
 - The camera follows the Boss horizontally and anchors the floor low on screen so the horizon stays stable during jumps.
 
+## Combat Model (Weapon-Based)
+
+> **Mutual body-contact damage has been removed.** Touching the Hero no longer damages anyone. All damage now comes from explicit attacks with directional hitboxes.
+
+- **Directional Weapon Hitboxes** — the Boss attacks with a Sword/Scythe slash that spawns a transient hitbox in the facing direction. A strike connects only when its hitbox overlaps a target during its active frames; the same applies to the Hero's melee. Strikes are heavy and committed (wind-up + recovery) so positioning and timing matter.
+- **Dodge Rolls (i-frames)** — a reactive roll granting a short invulnerability window, letting the Boss pass through incoming strikes. This replaces the old contact hit-flash i-frames as the Boss's primary defensive tool.
+- **AI Decision Logic** — the Hero chooses between approach, attack, feint, and retreat based on range, cooldowns, and the Boss's state, instead of blindly bee-lining into a contact trade.
+
 ## Balancing Rules (from `hero_progression_matrix.json`)
 
 All formulas use encounter number `n` (1–30):
@@ -50,7 +64,7 @@ All formulas use encounter number `n` (1–30):
 
 ### Hero Mechanic Unlock Order
 
-1. **Enc 1** — `pathfind_melee`: Pursuit & Contact Strike (mutual-contact trade)
+1. **Enc 1** — `pathfind_melee`: Pursuit & Melee Strike (directional weapon hitbox — **not** contact damage)
 2. **Enc 3** — `telegraph_awareness`: Leads pathing toward predicted position (250ms)
 3. **Enc 5** — `dash_roll`: Burst movement gap-closer (4s CD, 6 units)
 4. **Enc 8** — `feint`: Cancels dash mid-animation to bait dodges (300ms window)
@@ -77,17 +91,20 @@ The codebase has a working **2D platformer** game loop with:
 - Enemy (Hero) that obeys gravity and chases the Boss horizontally along the ground
 - AABB ground detection in `main.js` setting `isGrounded`, plus world-bound side-wall clamping
 - Side-scrolling camera with a stable floor horizon
-- **HP/Damage combat (Mutual-Contact Trade) is now implemented:** the Boss has an
-  HP pool (1000) and `contactDamage` (50); the Hero has its encounter-scaled HP and
-  `attackDamage`. On AABB overlap both fighters deal damage to each other in a single
-  exchange. Floating health bars are drawn above both entities.
-- **Knockback + i-frames are implemented:** on a hit both fighters bounce apart
-  (reversed horizontal velocity + slight upward pop, with a brief stun on the Hero so
-  pursuit doesn't cancel it). The Boss gets ~500ms of i-frames plus a white hit-flash,
-  which gates the trade so a sustained overlap can't drain HP every frame.
-- Combat outcomes: the Nemesis overlay / resurrection only fires when the Hero's HP
-  hits 0; when the Boss's HP hits 0 the game pauses on a `GAMEOVER` state and renders a
-  basic "GAME OVER — HERO WINS" banner (to be polished later).
+- **Combat is being migrated from Mutual-Contact Trade to the weapon-based model
+  (see "Combat Model" above).** The legacy contact code still exists and must be torn out:
+  - The Boss's `contactDamage` (50) and the AABB-overlap exchange that has both fighters
+    damage each other on touch — **remove this.** Damage should come from weapon hitboxes only.
+  - The Boss keeps its HP pool (1000), and the Hero keeps its encounter-scaled HP and
+    `attackDamage`. Floating health bars above both entities stay.
+- **i-frames are moving from a contact hit-flash to dodge-roll i-frames.** The old
+  ~500ms i-frames + white hit-flash that gated the contact trade should be replaced by
+  the dodge-roll invulnerability window. Knockback-on-hit can stay but should be driven
+  by weapon strikes, not body overlap.
+- Combat outcomes (unchanged): the Nemesis overlay / resurrection only fires when the
+  Hero's HP hits 0; when the Boss's HP hits 0 the game pauses on a `GAMEOVER` state and
+  renders a basic "GAME OVER — HERO WINS" banner (to be polished later).
+- Weapon hitbox system, dodge roll, and Hero AI decision logic are **not yet implemented**
 - The progression matrix exists (30 encounters) but is **not yet integrated** into gameplay
 - `handleCollision()` in main.js still uses hardcoded mockData instead of reading from the matrix
 - Enemy does not scale stats between encounters

@@ -3,6 +3,7 @@ import { Camera } from './core/Camera.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { UIManager } from './ui/UIManager.js';
+import { ThroneRoom } from './environment/ThroneRoom.js';
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -36,7 +37,7 @@ function resize() {
 
 window.addEventListener('resize', resize);
 
-let input, camera, player, enemy, uiManager;
+let input, camera, player, enemy, uiManager, throneRoom;
 let lastTime = 0;
 let stateTimer = 0; // seconds remaining in the current timed state
 
@@ -112,6 +113,11 @@ async function init() {
     camera = new Camera(width, height, makeBounds());
     uiManager = new UIManager();
 
+    // Procedural Throne Room backdrop. Lock its walking surface to the physics
+    // floor (floor.y) and its extent to WORLD_WIDTH so the rendered floor/carpet
+    // line up exactly with ground collision — entities never float or sink.
+    throneRoom = new ThroneRoom({ worldWidth: WORLD_WIDTH, floorY: floor.y });
+
     progressionMatrix = await loadProgressionMatrix();
     currentEncounterId = 1;
 
@@ -159,40 +165,6 @@ function clampToWorld(entity) {
         entity.x = max;
         if (entity.velocityX > 0) entity.velocityX = 0;
     }
-}
-
-function drawGrid(ctx) {
-    const gridSize = 100;
-    const left = camera.x - width / 2;   // world X at the left edge of the view
-    const top = camera.y - height / 2;   // world Y at the top edge of the view
-    const startX = Math.floor(left / gridSize) * gridSize;
-    const startY = Math.floor(top / gridSize) * gridSize;
-
-    ctx.strokeStyle = '#2a2a35';
-    ctx.lineWidth = 2;
-
-    for (let x = startX; x < left + width + gridSize; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, top);
-        ctx.lineTo(x, top + height);
-        ctx.stroke();
-    }
-
-    for (let y = startY; y < top + height + gridSize; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(left, y);
-        ctx.lineTo(left + width, y);
-        ctx.stroke();
-    }
-}
-
-function drawFloor(ctx) {
-    ctx.fillStyle = '#1c1c26';
-    ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
-
-    // Bright surface line so the ground reads clearly.
-    ctx.fillStyle = '#3a3a55';
-    ctx.fillRect(floor.x, floor.y, floor.width, 6);
 }
 
 // --- state machine ---------------------------------------------------------
@@ -301,6 +273,7 @@ function gameLoop(timestamp) {
 
     states[gameState].update(dt); // world only advances in PLAYING
     camera.update(dt);            // ALWAYS — this is what animates the cinematic pans
+    throneRoom.update(dt);        // ALWAYS — torch flicker / embers keep breathing
     draw();
 
     requestAnimationFrame(gameLoop);
@@ -384,20 +357,22 @@ function handleGameOver() {
 }
 
 function draw() {
-    ctx.fillStyle = '#111116';
-    ctx.fillRect(0, 0, width, height);
+    // Throne Room paints its own full-screen backdrop + world-locked scene. We
+    // defer its vignette (skipVignette) so it lands AFTER the entities, letting
+    // the Boss/Hero sink into the same edge shadow as the room.
+    throneRoom.render(ctx, camera, width, height, { skipVignette: true });
 
     ctx.save();
     camera.applyTransform(ctx);
 
-    drawGrid(ctx);
-    drawFloor(ctx);
     if (enemy) enemy.draw(ctx);
     player.draw(ctx);
 
     ctx.restore();
 
-    // Screen-space overlays (drawn outside the camera transform).
+    // Atmosphere over the top of everything, then screen-space overlays.
+    throneRoom.drawVignette(ctx, width, height);
+
     if (gameState === State.GAMEOVER) {
         drawGameOver();
     }

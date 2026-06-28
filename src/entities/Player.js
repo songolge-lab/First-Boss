@@ -1,5 +1,6 @@
 // src/entities/Player.js
 import { Hitbox } from '../core/Hitbox.js';
+import { SpriteManager, SpriteAnimator, BOSS_SPRITES, BOSS_PIXEL } from '../core/SpriteManager.js';
 
 // Sword tuning. Frame-based to match the existing per-frame physics (~60fps).
 // Heavy + committed: a real cooldown between slashes so positioning matters
@@ -87,6 +88,10 @@ export class Player {
         // Knockback applied when hit (bounce away from the attacker + slight pop up).
         this.knockbackForce = 9;
         this.knockbackLift = 8;
+
+        // --- Pixel-art rendering (visual only; never affects physics/combat) ---
+        this.anim = new SpriteAnimator(BOSS_SPRITES);
+        this._spriteTopY = null; // set each draw from the sprite; positions the HP bar
     }
 
     // Self-contained attack input so NO changes to Input.js are required:
@@ -207,75 +212,64 @@ export class Player {
         return true;
     }
 
+    // Pick the animation clip from the Boss's CURRENT state. Rendering-only:
+    // it reads physics/combat fields but never writes them.
+    _animState() {
+        if (this.attackHitbox.isActive) return { name: 'attack', hold: 4 };
+        if (this.dashTimer > 0)         return { name: 'dash',   hold: 4 };
+        if (!this.isGrounded) {
+            if (this.jumpCount >= 2)    return { name: 'doubleJump', hold: 4 };
+            return { name: this.velocityY < 0 ? 'jump' : 'fall', hold: 6 };
+        }
+        if (Math.abs(this.velocityX) > 0.6) return { name: 'run', hold: 4 };
+        return { name: 'idle', hold: 12 };
+    }
+
     draw(ctx) {
-        // Flash bright white for a few frames right after being hit.
-        const flashing = this.hitFlash > 0;
-        const fill = flashing ? '#ffffff' : this.color;
+        // Advance the animation from state (no physics is touched here).
+        const { name, hold } = this._animState();
+        this.anim.set(name, hold);
+        this.anim.tick();
+        const frame = this.anim.current();
+        if (!frame) return;
 
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = fill;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = fill;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.closePath();
+        const feetY = this.y + this.halfHeight;            // the sprite stands here
+        const flip = this.facing === -1;                   // art is drawn facing right
+        const tint = this.hitFlash > 0 ? '#ffffff' : null; // white hit-flash
 
-        this.drawSwordSwing(ctx); // golden crescent during an active slash
+        // Soft contact shadow, only while actually on the ground.
+        if (this.isGrounded) {
+            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * BOSS_PIXEL * 0.6);
+        }
+
+        // REQUIREMENT 4: the Boss's dark aura — sized to and centered on the
+        // sprite, drawn BEHIND it so the figure sits inside the shadow-field.
+        const hpx = frame.length * BOSS_PIXEL;
+        SpriteManager.drawAura(ctx, this.x, feetY - hpx * 0.5, {
+            radius: hpx * 0.6,
+            seed: 1.7,
+            intensity: this.hitFlash > 0 ? 1.6 : 1,
+        });
+
+        // The Boss sprite (renders 3x the Hero via BOSS_PIXEL).
+        const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
+            pixelSize: BOSS_PIXEL, flip, tint,
+        });
+        this._spriteTopY = res ? res.originY : null;
+
+        // Floating HP bar stays (now anchored above the sprite's head).
         this.drawHealthBar(ctx);
     }
 
-    // Golden crescent sword swing, shown while the slash hitbox is active. The
-    // crescent sweeps downward through the swing and mirrors with `facing`.
-    drawSwordSwing(ctx) {
-        const hb = this.attackHitbox;
-        if (!hb.isActive) return;
-
-        const t = hb.swingProgress;                   // 0..1 across the active frames
-        const swing = -Math.PI * 0.55 + Math.PI * t;  // sweep ~100°, top -> bottom
-        const pop = Math.sin(Math.PI * t);            // fade in/out at the extremes
-
-        const outerR = this.radius + 38;
-        const innerR = this.radius + 14;
-        const halfArc = Math.PI * 0.30;
-
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.scale(this.facing, 1); // mirror to the facing direction
-        ctx.rotate(swing);
-        ctx.globalAlpha = 0.35 + 0.65 * pop;
-
-        const grad = ctx.createRadialGradient(0, 0, innerR, 0, 0, outerR);
-        grad.addColorStop(0, 'rgba(255, 210, 40, 0.10)');
-        grad.addColorStop(1, 'rgba(255, 232, 120, 0.95)');
-
-        // Crescent body (annular sector).
-        ctx.beginPath();
-        ctx.arc(0, 0, outerR, -halfArc, halfArc);
-        ctx.arc(0, 0, innerR, halfArc, -halfArc, true);
-        ctx.closePath();
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(255, 200, 50, 0.9)';
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // Bright leading edge of the blade.
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = 'rgba(255, 255, 230, 0.9)';
-        ctx.beginPath();
-        ctx.arc(0, 0, outerR, -halfArc, halfArc);
-        ctx.stroke();
-
-        ctx.restore(); // restores alpha / shadow / transform
-    }
+    // (The old golden-crescent drawSwordSwing() was removed — the pixel-art
+    //  'attack' animation frames now render the Boss's sword swing.)
 
     // Floating HP bar above the Boss (drawn in world space, under the camera transform).
     drawHealthBar(ctx) {
         const barWidth = 56;
         const barHeight = 7;
         const x = this.x - barWidth / 2;
-        const y = this.y - this.radius - 18;
+        const y = (this._spriteTopY != null ? this._spriteTopY - barHeight - 6 : this.y - this.radius - 18);
         const pct = Math.max(0, this.hp / this.maxHp);
 
         // Backing plate.

@@ -183,6 +183,11 @@ const states = {
             player.update(input);
             enemy.update(player.x, player.y);
 
+            // Keep the Boss visually facing the active Hero. Cosmetic only: it
+            // drives the sprite flip + void-sword aim and never touches physics
+            // or combat. (Our arena has a single live Hero in `enemy`.)
+            if (enemy) player.faceHero(enemy.x);
+
             // Resolve physics against the level after movement.
             resolveFloorCollision(player);
             resolveFloorCollision(enemy);

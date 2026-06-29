@@ -62,6 +62,31 @@ export const BOSS_SPRITES = {
     ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....KVXXX...............', '....DKVxDXXX............', '....DDKVxDKVXX..........', '....xDKVVxDKVxXXX.......', '....VxDKVxDDKVxDKXXX....', '.kkkVVxDKExDKVVxDKVxXX..', '....VexxeKVeDKexDeKVeXX.', '.KKKKVVxDEKVxDKVxDKVXX..', '....DKVVxDKVxxDKVXXX....', '....DDKVVxDKVxXXX.......', '....xDKVVVxDXX..........', '....VxDKVXXX............', '....KVXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
     ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....xDXXX...............', '....VxDKVXXX............', '....VVxDKVxDXX..........', '....KVxDDKVxDKXXX.......', '....DKVxDKVVxDKVxXXX....', '.kkkxDKVxEKVxDDKVxDKXX..', '....xDeKVeDKexDeVVeDKXX.', '.KKKVxDKVExDKVxDKVxDXX..', '....VVxDKVxDKKVxDXXX....', '....VVVxDKVxDKXXX.......', '....KVVxDDKVXX..........', '....DKVVxXXX............', '....xDXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
   ],
+  attack1: [
+    ['........XVKKK...........', '.........eKPDK..........', '.....PkKDXvKKKK.........', '....PkKkKKxeKBB.........', '....PKkDKDXvVKEK........', '....PkKkKDKxeKmK........', '...PkKDKKDDXxVKK........', '..PkKkKKKDKKxvVK........', '...PkDKKDDDDXxvgO.......', '...PKkKPKDPpKPGPK.......', '..PKDKkDKDPpOggDK.......', '..PkKkKKDPDpKPDKK.......', '..PDkKDKDPPpKPPDK.......', '.PKkKkKKDPDpKpDPDK......', '.PDKkDKDDPppKpPDDK......', '.PKkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'P.KkKKDDPPDpKpDPDDK.....', 'P.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k..KkDKKKK..KKK...K.....', 'K..kK..kKK...K..........', '.........K...K..........', '........KK...KK.........'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.....x.x.', '....PkKkKKDDBBB........x', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK........', '..PkKkKKKDKDDDKK........', '..PKkDKKDDDDDDDKK.......', '.PKkKkKPKDPppPpPK.O.....', '.PkKDKkDKDPpKpPKPg.X....', 'PkKkKkKKDPDpKPDDgGxxXX..', 'PKkDkKDKDPPpKPPDKgvvxxXX', 'KkKkKkKKDPDpKpDPOKVVVvex', 'kKDKkDKDDPppKpPDDKKKVVVV', 'K.KkKkKDDPDpKpDDDK..KKKK', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k.DKk.KKKK..KKK...K.....', '..Kk..Kk.K...K..........', '.........K...K..........', '........KK...KK.........'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK........', '..PkKkKKKDKDDDKK........', '...PkDKKDDDDDDDKK.......', '...PKkKPKDPppPpPK....XXX', '..PKDKkDKDPpKpPDO.XXXxev', '..PkKkKKDPDpKPDDPgxxvvvV', '.PkDkKDKDPPpKPPDgGvv.VKK', '.PKkKkKKDPDpKpDKDg.VKK..', 'PKDKkDKDDPppKpPDDKOK....', 'P.KkKkKDDPDpKpDDDK......', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', '..DK.DKKKK..KKK...K.....', '..K...K..K...K..........', '..k...k..K...K..........', '........KK...KK.........'],
+  ],
+  attack2: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.....x.x.', '....PkKkKKDDBBB........x', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK........', '..PkKkKKKDKDDDKK........', '..PKkDKKDDDDDDDKK.......', '.PKkKkKPKDPppPpPK.O.....', '.PkKDKkDKDPpKpPKPg.X....', 'PkKkKkKKDPDpKPDDgGxxXX..', 'PKkDkKDKDPPpKPPDKgvvxxXX', 'KkKkKkKKDPDpKpDPOKVVVvex', 'kKDKkDKDDPppKpPDDKKKVVVV', 'K.KkKkKDDPDpKpDDDK..KKKK', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k.DKk.KKKK..KKK...K.....', '..Kk..Kk.K...K..........', '.........K...K..........', '........KK...KK.........'],
+    ['...........KK...........', '..........KDPK..........', '.x.x.....KKKKK.DKkP.....', 'x........BBBDDKKkKkP....', '........KEBEBDDKDkKP....', '........KmBmBDDKkKkP....', '........KDBBBDDKKDKkP...', '........KKDDDKDKKKkKkP..', '.......KKDDDDDDDKKDkKP..', '.....O.KPpPppPDKPKkKkKP.', '....X.gPKPpKpPDKDkKDKkP.', '..XXxxGgDDPKpDPDKKkKkKkP', 'XXxxvvgKDPPKpPPDKDKkDkKP', 'xevVVVKOPDpKpDPDKKkKkKkK', 'VVVVKKKDDPpKppPDDKDkKDKk', 'KKKK..KDDDpKpDPDDKkKkK.K', '.....KDDPPpKppPPDDKDKk.k', '.....KDDPDpKpDPPDDKKkK.K', '.....KKKKPPKKKKPPDKKDk.D', '.....DDDPDPDppPDDDDKkK.K', '.....K...KKK..KKKK.kKD.k', '..........K...K.kK..kK..', '..........K...K.........', '.........KK...KK........'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK........', '..PkKkKKKDKDDDKK........', '...PkDKKDDDDDDDKK.......', '...PKkKPKDPppPpPK....XXX', '..PKDKkDKDPpKpPDO.XXXxev', '..PkKkKKDPDpKPDDPgxxvvvV', '.PkDkKDKDPPpKPPDgGvv.VKK', '.PKkKkKKDPDpKpDKDg.VKK..', 'PKDKkDKDDPppKpPDDKOK....', 'P.KkKkKDDPDpKpDDDK......', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', '..DK.DKKKK..KKK...K.....', '..K...K..K...K..........', '..k...k..K...K..........', '........KK...KK.........'],
+    ['...........KK...........', '..........KDPK..........', '.........KKKKK.DKkP.....', '.........BBBDDKKkKkP....', '........KEBEBDDKDkKP....', '........KmBmBDDKkKkP....', '........KDBBBDDKKDKkP...', '........KKDDDKDKKKkKkP..', '.......KKDDDDDDDKKDkP...', 'XXX....KPpPppPDKPKkKP...', 'vexXXX.ODPpKpPDKDkKDKP..', 'VvvvxxgPDDPKpDPDKKkKkP..', 'KKV.vvGgDPPKpPPDKDKkDkP.', '..KKV.gDKDpKpDPDKKkKkKP.', '....KOKDDPpKppPDDKDkKDKP', '......KDDDpKpDPDDKkKkK.P', '.....KDDPPpKppPPDDKDKk.k', '.....KDDPDpKpDPPDDKKkK.K', '.....KKKKPPKKKKPPDKKDk.D', '.....DDDPDPDppPDDDDKkK.K', '.....K...KKK..KKKKD.KD..', '..........K...K..K...K..', '..........K...K..k...k..', '.........KK...KK........'],
+  ],
+  attack3: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB........X', '....PKkDKDDBEBEK......Xv', '....PkKkKDDBmBmK....KXeK', '...PkKDKKDDBBBDK...KXvVK', '..PkKkKKKDKDDDKK..vXXVK.', '...PkDKKDDDDDDDKKvXxXvK.', '...PKkKPKDPppPOPXXxOxX..', '..PKDKkDKDPpKpPgKvXxXv..', '..PkKkKKDPDpKPDDG.vXX...', '.PkDkKDKDPPpKPPKKg.K....', '.PKkKkKKDPDpKpDPDKO.....', '.PDKkDKDDPppKpPDDK......', 'P.KkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k..KkDKKKK..KKK...K.....', 'K...K...KK...K..........', 'k...D...kK...K..........', '........KK...KK.........'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB........X', '....PKkDKDDBEBEK......Xv', '....PkKkKDDBmBmK....KXeK', '...PkKDKKDDBBBDK...KXvVK', '..PkKkKKKDKDDDKK..XvXVK.', '....PDKKDDDDDDDKKXxXxXK.', '....PkKPKDPppPOPXvXOXv..', '...PDKkDKDPpKpPgKXxXxX..', '...PKkKKDPDpKPDDG.XvX...', '..PDkKDKDPPpKPPKKg.K....', '..PkKkKKDPDpKpDPDKO.....', '..PKkDKDDPppKpPDDK......', '.PKkKkKDDPDpKpDDDK......', '.PkKDKDDPPppKpPPDDK.....', 'P.KkKKDDPPDpKpDPDDK.....', 'P.kDKKDPPKKKKPPKKKK.....', 'P.KkKDDDDPppDPDPDDD.....', 'k.D.kDKKKK..KKK...K.....', '.k...k...K...K..........', '.D...K...K...K..........', '........KK...KK.........'],
+  ],
+  attack4: [
+    ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....VVXXX...............', '....KVVxDXXX............', '....KKVVxDKVXX..........', '....DKVVVxDKVxXXX.......', '....xDKVVxDDKVxDKXXX....', '.kkkVxDKVExDKVVxDKVxXX..', '....VxeDKeVxeKVeDDeVxXX.', '.KKKKVxDKEVVxDKVxDKVXX..', '....DKVxDKVVxxDKVXXX....', '....DDKVxDKVVxXXX.......', '....xDKVxxDKXX..........', '....VxDKVXXX............', '....KVXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
+    ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....xDXXX...............', '....VxDKVXXX............', '....VVxDKVxDXX..........', '....VVxDDKVxDKXXX.......', '....KVVxDKVVxDKVxXXX....', '.kkkDKVVxEKVxDDKVxDKXX..', '....eKVeVxeKVeDKeVxeKXX.', '.KKKxDKVVExDKVxDKVxDXX..', '....VxDKVVxDKKVxDXXX....', '....VVxDKVVxDKXXX.......', '....KVxDKKVVXX..........', '....DKVxDXXX............', '....xDXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
+    ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....KVXXX...............', '....DKVxDXXX............', '....DDKVxDKVXX..........', '....xDKVVxDKVxXXX.......', '....VxDKVxDDKVxDKXXX....', '.kkkVVxDKExDKVVxDKVxXX..', '....VexxeKVeDKexDeKVeXX.', '.KKKKVVxDEKVxDKVxDKVXX..', '....DKVVxDKVxxDKVXXX....', '....DDKVVxDKVxXXX.......', '....xDKVVVxDXX..........', '....VxDKVXXX............', '....KVXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
+    ['........................', '........................', '........................', '........................', '........................', '....XX..................', '....xDXXX...............', '....VxDKVXXX............', '....VVxDKVxDXX..........', '....KVxDDKVxDKXXX.......', '....DKVxDKVVxDKVxXXX....', '.kkkxDKVxEKVxDDKVxDKXX..', '....xDeKVeDKexDeVVeDKXX.', '.KKKVxDKVExDKVxDKVxDXX..', '....VVxDKVxDKKVxDXXX....', '....VVVxDKVxDKXXX.......', '....KVVxDDKVXX..........', '....DKVVxXXX............', '....xDXXX...............', '....XX..................', '........................', '........................', '........................', '........................'],
+  ],
+  airDive: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK.......K', '...PkKDKKDDBBBDK......Xv', '..PkKkKKKDKDDDKK....XXeK', '...PkDKKDDDDDDDKK..XXvK.', '..PkKkKPKDPppPpGgXXveVK.', '.PkKDKkDKDPpKpOgSXv.VK..', '.PKkKkKKDPDpKPDgWS.VK...', 'PKkDkKDKDPPpKPPDGWSK....', 'KkKkKkKKDPDpKpKgDgWS....', 'kKDKkDKDDPppKpPDDgOWS...', 'K.KkKkKDDPDpKpDDDK..WS..', 'k.kKDKDDPPppKpPPDDK..WO.', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', '..DK.DKKKK..KKK...K.....', '.kK..kK.Kk....K.........', '.......K.......K........', '.......K.......K........'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK......Xx', '..PkKkKKKDKDDDKK....XXev', '...PkDKKDDDDDDDKK..X.vVK', '..PkKkKPKDPppPpGgXXxeVK.', '.PkKDKkDKDPpKpPOS.xvVK..', '.PKkKkKKDPDpKPDgWSvVK...', 'PKkDkKDKDPPpKPPDGWSK....', 'PkKkKkKKDPDpKpKgDgWS....', 'kKDKkDKDDPppKpPDDO.WS...', 'K.KkKkKDDPDpKpDDDK..WS..', 'k.kKDKDDPPppKpPPDDK..WO.', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k.D.kDKKKK..KKK...K.....', '.k...k..Kk....K.........', '.D...K.K.K.....K........', '.......K.......K........'],
+  ],
 };
 
 export const HERO_SPRITES = {
@@ -432,6 +457,226 @@ export class SpriteManager {
             ctx.fill();
         }
         ctx.restore();
+    }
+
+    /**
+     * REQUIREMENT 3 - the Dark Flame projectile (Hit 3). A travelling ball of
+     * violet hellfire: a dark-violet core, crackling crimson/amber tongues that
+     * flicker forward along `dir`, and a smoky ember tail streaming behind it.
+     * Procedural (gradients + particles), not a sprite matrix. Visual-only.
+     *
+     * @param {number} cx, cy  flame centre in world space.
+     * @param {number} dir     +1 / -1 travel direction (default +1).
+     * @param {object} opts     { time(ms), progress(0..1), width, height, intensity }
+     */
+    static drawDarkFlame(ctx, cx, cy, dir = 1, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            progress = 0, width = 64, height = 56, intensity = 1,
+        } = opts;
+        const t = time / 1000;
+        const grow = Math.min(1, progress / 0.12);                       // quick spawn-in
+        const fade = progress > 0.85 ? Math.max(0, 1 - (progress - 0.85) / 0.15) : 1; // burn-out
+        const a = grow * fade * intensity;
+        const R = height * 0.5;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Smoky ember tail behind the flame (opposite the travel direction).
+        for (let i = 0; i < 6; i++) {
+            const back = (i + ((t * 4) % 1)) * (width * 0.16);
+            const tx = -dir * (R * 0.4 + back);
+            const ty = Math.sin(t * 6 + i) * R * 0.18;
+            const ta = a * Math.max(0, 0.5 - back / (width * 1.1));
+            ctx.globalAlpha = ta;
+            ctx.fillStyle = i % 2 ? 'rgba(60, 20, 90, 0.8)' : 'rgba(120, 40, 40, 0.7)';
+            ctx.beginPath();
+            ctx.arc(tx, ty, R * (0.5 - i * 0.05), 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Dark-violet core glow.
+        ctx.globalAlpha = a;
+        const core = ctx.createRadialGradient(0, 0, R * 0.12, 0, 0, R * 1.15);
+        core.addColorStop(0.0, 'rgba(200, 130, 255, 0.95)');
+        core.addColorStop(0.35, 'rgba(126, 63, 214, 0.85)');
+        core.addColorStop(0.70, 'rgba(42, 20, 80, 0.55)');
+        core.addColorStop(1.0, 'rgba(12, 4, 24, 0)');
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crackling fire tongues licking forward + up (amber / crimson / violet).
+        ctx.shadowBlur = 10;
+        const N = 16;
+        for (let i = 0; i < N; i++) {
+            const flick = 0.5 + 0.5 * Math.sin(t * 14 + i * 1.7);
+            const ang = (-Math.PI / 2) + (i / N - 0.5) * Math.PI * 1.1 + dir * 0.2;
+            const len = R * (0.6 + 0.7 * flick);
+            const fx = Math.cos(ang) * len * 0.7 + dir * R * 0.25 * flick;
+            const fy = Math.sin(ang) * len;
+            ctx.globalAlpha = a * (0.4 + 0.5 * flick);
+            ctx.fillStyle = i % 3 === 0 ? 'rgba(255, 200, 110, 0.95)'
+                          : i % 3 === 1 ? 'rgba(255, 70, 50, 0.95)'
+                                        : 'rgba(190, 80, 255, 0.9)';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(fx, fy, 2 + 2.5 * flick, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    /**
+     * REQUIREMENT 3 - the Explosive Finisher blast (Hit 4) AND the air-dive
+     * landing shockwave. Both are the same detonation, so one function renders
+     * both forms; pass `flat: true` for the ground-hugging shockwave variant.
+     * Procedural (gradients + particles); visual-only.
+     *
+     *   default  : a massive spherical blast - white-hot heart, fiery
+     *              orange/red/violet body, an expanding shock ring, flung shards
+     *              and rising smoke. Draw it OVER the Boss for maximum impact.
+     *   flat:true : a flattened ring of force racing outward across the floor
+     *              with an inner glow + a kick of dust motes. Draw it UNDER the
+     *              Boss, anchored at the ground line.
+     *
+     * @param {number} cx, cy  blast centre (spherical) / ground point (flat).
+     * @param {object} opts     { time(ms), progress(0..1), radius, intensity, flat }
+     */
+    static drawExplosion(ctx, cx, cy, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            progress = 0, radius = 100, intensity = 1, flat = false,
+        } = opts;
+        const t = time / 1000;
+        const ease = (p) => 1 - (1 - p) * (1 - p);
+
+        // ---- Ground shockwave variant (air-dive landing) ----------------------
+        if (flat) {
+            const r = radius * (0.15 + 0.95 * ease(progress));
+            const fade = Math.max(0, 1 - progress);
+            const squash = 0.32; // vertical squash => a ground-hugging ring
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            // Inner ground glow.
+            ctx.globalAlpha = fade * 0.5 * intensity;
+            const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, r);
+            glow.addColorStop(0.0, 'rgba(190, 120, 255, 0.5)');
+            glow.addColorStop(0.6, 'rgba(120, 40, 160, 0.22)');
+            glow.addColorStop(1.0, 'rgba(20, 6, 30, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r, r * squash, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // The racing ring (bright violet crest + crimson under-ring).
+            ctx.globalAlpha = fade * intensity;
+            ctx.lineWidth = Math.max(2, r * 0.06 * (1 - progress * 0.6));
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = 'rgba(150, 80, 255, 0.9)';
+            ctx.strokeStyle = 'rgba(230, 200, 255, 0.95)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r, r * squash, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.lineWidth = Math.max(1, r * 0.03);
+            ctx.strokeStyle = 'rgba(255, 70, 90, 0.7)';
+            ctx.shadowColor = 'rgba(255, 60, 70, 0.8)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r * 0.82, r * squash * 0.82, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Dust motes kicked up around the ring crest.
+            ctx.shadowBlur = 6;
+            const Nd = 14;
+            for (let i = 0; i < Nd; i++) {
+                const ang = (i / Nd) * Math.PI * 2;
+                const dx = Math.cos(ang) * r;
+                const dy = Math.sin(ang) * r * squash - progress * 18; // lift as it travels
+                ctx.globalAlpha = fade * (0.4 + 0.4 * Math.sin(t * 12 + i)) * intensity;
+                ctx.fillStyle = i % 2 ? 'rgba(200, 160, 255, 0.85)' : 'rgba(150, 90, 210, 0.8)';
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(dx, dy, 1.6 + (i % 3), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+            return;
+        }
+
+        // ---- Spherical blast variant (finisher) -------------------------------
+        const r = radius * (0.25 + 0.85 * ease(progress));
+        const fade = progress < 0.6 ? 1 : Math.max(0, 1 - (progress - 0.6) / 0.4);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Fiery body.
+        ctx.globalAlpha = fade * intensity;
+        const body = ctx.createRadialGradient(0, 0, r * 0.05, 0, 0, r);
+        body.addColorStop(0.00, 'rgba(255, 255, 240, 0.98)');
+        body.addColorStop(0.18, 'rgba(255, 220, 130, 0.95)');
+        body.addColorStop(0.42, 'rgba(255, 110, 50, 0.9)');
+        body.addColorStop(0.68, 'rgba(190, 40, 60, 0.7)');
+        body.addColorStop(0.86, 'rgba(110, 40, 160, 0.45)');
+        body.addColorStop(1.00, 'rgba(20, 6, 30, 0)');
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Expanding shock ring.
+        ctx.globalAlpha = fade * 0.8 * intensity;
+        ctx.lineWidth = Math.max(1.5, r * 0.05 * (1 - progress));
+        ctx.strokeStyle = 'rgba(255, 230, 180, 0.9)';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = 'rgba(255, 140, 60, 0.9)';
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (0.85 + 0.2 * progress), 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Radial shards flung outward.
+        ctx.shadowBlur = 10;
+        const Ns = 20;
+        for (let i = 0; i < Ns; i++) {
+            const ang = (i / Ns) * Math.PI * 2 + i * 0.3;
+            const dist = r * (0.6 + 0.5 * ((i * 7) % 5) / 5);
+            const sx = Math.cos(ang) * dist;
+            const sy = Math.sin(ang) * dist;
+            ctx.globalAlpha = fade * (0.5 + 0.4 * Math.sin(t * 10 + i)) * intensity;
+            ctx.fillStyle = i % 2 ? 'rgba(255, 180, 90, 0.95)' : 'rgba(255, 80, 60, 0.95)';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 2 + (i % 3) * 1.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Rising smoke puffs as it dissipates.
+        for (let i = 0; i < 6; i++) {
+            const rise = progress * r * 0.9;
+            const px = Math.cos(i * 1.7) * r * 0.4;
+            const py = -rise + Math.sin(i * 2.1) * r * 0.1;
+            ctx.globalAlpha = fade * 0.3 * intensity;
+            ctx.fillStyle = 'rgba(40, 20, 50, 0.7)';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(px, py, r * (0.18 + 0.05 * i) * progress, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    /**
+     * Convenience alias: the air-dive landing shockwave is simply the explosion
+     * rendered in its flattened ground mode. Kept so call sites (Player.js) read
+     * by intent; it adds no new logic - just forwards to drawExplosion().
+     */
+    static drawShockwave(ctx, gx, gy, opts = {}) {
+        return SpriteManager.drawExplosion(ctx, gx, gy, { radius: 110, ...opts, flat: true });
     }
 }
 

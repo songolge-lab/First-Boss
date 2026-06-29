@@ -308,16 +308,42 @@ function handleCombat() {
 
     let enemyTookWeaponHit = false;
 
-    // (a) Boss's slash vs the Hero's body -> Hero takes damage + knockback.
-    const bossSlash = player.attackHitbox;
-    if (bossSlash.overlaps(enemy) && !bossSlash.hasHit(enemy)) {
-        const dir = Math.sign(enemy.x - player.x) || player.facing; // push Hero away
-        if (enemy.takeDamage(bossSlash.damage, dir)) {
-            bossSlash.markHit(enemy);
+    // (a) ALL of the Boss's active hitboxes vs the Hero's body. This now spans the
+    //     4-hit combo's melee swing AND every spawned hitbox: the Dark Flame
+    //     projectile (Hit 3), the Finisher explosion (Hit 4), and the air-dive
+    //     shockwave. Each swing / projectile still damages the Hero at most once
+    //     (markHit), exactly like the old single-slash check did.
+    //
+    //     NOTE: the Fear Strike is the air-dive SHOCKWAVE, which lives in
+    //     player.projectiles -- NOT player.attackHitbox. So we test isFearStrike on
+    //     whichever hitbox actually connects (via getActiveHitboxes()); checking
+    //     player.attackHitbox.isFearStrike directly would never be true here.
+    for (const hb of player.getActiveHitboxes()) {
+        if (!hb.overlaps(enemy) || hb.hasHit(enemy)) continue;
+
+        const dir = Math.sign(enemy.x - hb.x) || player.facing; // push Hero away from the strike
+
+        // Apply the hit. If the Hero's dodge i-frames block it, takeDamage returns
+        // false and we DON'T mark it, so it can still connect later in its window.
+        if (enemy.takeDamage(hb.damage, dir)) {
+            hb.markHit(enemy);
             enemyTookWeaponHit = true;
+
+            // --- Fear Strike (air-dive shockwave) ------------------------------
+            // A fear strike doesn't JUST deal damage; it ALSO kicks off the Hero's
+            // fear / fall-down reaction. That reaction is implemented on the Enemy
+            // class in a later phase, so triggerFear() may not exist yet -> guard it.
+            if (hb.isFearStrike === true) {
+                console.log('[Combat] FEAR STRIKE landed on the Enemy! (damage ' + hb.damage + ', kind: ' + hb.kind + ')');
+                if (typeof enemy.triggerFear === 'function') {
+                    enemy.triggerFear();
+                    console.log('[Combat] -> enemy.triggerFear() invoked.');
+                } else {
+                    console.warn('[Combat] -> enemy.triggerFear() not implemented yet ' +
+                                 '(placeholder; the Enemy fall-down reaction lands next phase).');
+                }
+            }
         }
-        // If blocked by the Hero's dodge i-frames the swing simply whiffs; we
-        // don't mark it, so it can still connect later in its active window.
     }
 
     // (b) Hero's slash vs the Boss's body -> Boss takes damage + knockback.

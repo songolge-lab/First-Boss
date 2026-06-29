@@ -5,15 +5,45 @@ import { SpriteManager, SpriteAnimator, BOSS_SPRITES, BOSS_PIXEL } from '../core
 // Sword tuning. Frame-based to match the existing per-frame physics (~60fps).
 // Heavy + committed: a real cooldown between slashes so positioning matters
 // (in the spirit of the Hollow-Knight-ish "weighty" combat in CLAUDE.md).
+//
+// NOTE: this now just SEEDS the shared melee Hitbox at construction. The 4-hit
+// combo (below) reconfigures that same hitbox per-hit via configure(), so SWORD
+// is effectively the template for hit 1.
 const SWORD = Object.freeze({
-    REACH_PX: 40,        // hitbox center distance from the Boss center (in facing dir)
-    WIDTH: 48,           // hitbox full width
-    HEIGHT: 56,          // hitbox full height (a touch taller than the body)
-    DURATION_FRAMES: 12, // active frames of the slash (~0.20s)
-    COOLDOWN_FRAMES: 38, // ~0.63s between slashes
-    DAMAGE: 50,          // carried over from the old contactDamage value
-    KNOCKBACK: 10,       // horizontal knockback dealt to whatever it hits
+    REACH_PX: 42,        // hitbox center distance from the Boss center (in facing dir)
+    WIDTH: 56,           // hitbox full width
+    HEIGHT: 60,          // hitbox full height (a touch taller than the body)
+    DURATION_FRAMES: 10, // active frames of the slash (~0.17s)
+    COOLDOWN_FRAMES: 0,  // the combo FSM gates cadence now, not the hitbox cooldown
+    DAMAGE: 60,          // carried over from the old contactDamage value
+    KNOCKBACK: 11,       // horizontal knockback dealt to whatever it hits
 });
+
+// ---------------------------------------------------------------------------
+// REQUIREMENT 1 — 4-hit ground combo tuning (all times in frames @ ~60fps).
+//   commit   : frames the Boss is fully committed to the swing (input locked).
+//   recovery : the CHAIN WINDOW after commit. A press here advances the combo;
+//              if it lapses with no buffered press, the combo resets.
+//   step     : forward momentum (px/frame) injected at the hit's start.
+//   box      : per-hit melee Hitbox config (hits 1 & 2 only).
+// ---------------------------------------------------------------------------
+const COMBO = Object.freeze({
+    1: { commit: 14, recovery: 16, step: 6,
+         box: { reach: 42, width: 56, height: 60, duration: 10, cooldown: 0, damage: 60, knockback: 11 } },
+    2: { commit: 16, recovery: 16, step: 7,
+         box: { reach: 46, width: 70, height: 64, duration: 12, cooldown: 0, damage: 72, knockback: 13 } },
+    3: { commit: 20, recovery: 18 },   // Dark Flame cast — Boss stands still
+    4: { commit: 10, recovery: 30 },   // Explosive dash finisher (commit == dash length)
+});
+
+// Hit 3 — Dark Flame: a moving Hitbox that rides the ground forward.
+const FLAME  = Object.freeze({ width: 64, height: 56, frames: 80, speed: 9, spawnAhead: 56, damage: 80, knockback: 14 });
+// Hit 4 — Explosive Finisher: a fast forward dash, then a massive circular blast.
+const FINISH = Object.freeze({ dashFrames: 10, dashSpeed: 30 });
+const EXPL   = Object.freeze({ size: 210, frames: 26, ahead: 24, damage: 160, knockback: 26 });
+// REQUIREMENT 2 — Diagonal Air Dive + landing (Fear Strike) shockwave.
+const DIVE   = Object.freeze({ freeze: 12, vx: 11, vy: 21 });
+const SHOCK  = Object.freeze({ width: 210, height: 92, frames: 22, damage: 90, knockback: 22 });
 
 export class Player {
     constructor(x, y) {
@@ -61,8 +91,9 @@ export class Player {
         // this value is the damage the Hero soaks for bumping into the Boss.
         this.contactDamage = 50;
 
-        // Directional sword slash (J / Left Click): a transient hitbox spawned in
-        // the facing direction. Damage comes from THIS, not from body overlap.
+        // Shared directional melee hitbox (J / Left Click). The 4-hit combo reuses
+        // this one object and reshapes it per hit via configure(). Damage comes
+        // from THIS (and the spawned projectiles), not from body overlap.
         this.attackHitbox = new Hitbox({
             reach: SWORD.REACH_PX,
             width: SWORD.WIDTH,
@@ -74,6 +105,25 @@ export class Player {
         });
         this._attackQueued = false; // edge-detected attack press, consumed in update()
         this._installAttackInput();
+
+        // --- Spawned hitboxes that live on their own (combo overhaul) ------------
+        // Dark Flame (moving), Finisher explosion, and air-dive shockwave all get
+        // pushed here. update() advances + culls them; draw() renders them; main.js
+        // reads them via getActiveHitboxes() for collision.
+        this.projectiles = [];
+
+        // --- REQUIREMENT 1: 4-hit ground combo FSM state ---
+        this.comboStep = 0;          // 0 = idle; 1..4 = the active hit
+        this.comboPhase = null;      // 'commit' | 'recovery' (the chain window)
+        this.comboPhaseTimer = 0;    // frames left in the current phase
+        this.comboBuffered = false;  // a press captured to chain into the next hit
+        this.attackDir = 1;          // direction the CURRENT combo/dive commits toward
+        this._finisherDashTimer = 0; // hit-4 locked dash countdown
+        this._explosionSpawned = false;
+
+        // --- REQUIREMENT 2: Diagonal Air Dive state ---
+        this.airDiveState = 'none';  // 'none' | 'freeze' | 'dive'
+        this._airDiveFreezeTimer = 0;
 
         // Invulnerability window: after taking a hit the Boss ignores further
         // damage for a short time so one of the Hero's swings can't drain HP every
@@ -104,7 +154,7 @@ export class Player {
     }
 
     // Self-contained attack input so NO changes to Input.js are required:
-    // 'J' on the keyboard, or a left-click on the game canvas, queues one slash.
+    // 'J' on the keyboard, or a left-click on the game canvas, queues one press.
     // (If you'd rather route this through your Input class for consistency, add an
     //  `consumeAttack()` there and swap _consumeAttack() below to call it.)
     _installAttackInput() {
@@ -124,6 +174,12 @@ export class Player {
     _consumeAttack() {
         if (this._attackQueued) { this._attackQueued = false; return true; }
         return false;
+    }
+
+    // The direction an attack should commit toward: the Hero (aimDir) so swings,
+    // momentum, and the sprite flip all agree; falls back to input facing.
+    _aimOrFacing() {
+        return this.aimDir || this.facing || 1;
     }
 
     /**
@@ -154,15 +210,75 @@ export class Player {
         if (this.dashCooldown > 0) this.dashCooldown--;
         this.attackHitbox.tick();
 
-        // --- Track facing from horizontal input (drives the dash AND slash direction) ---
-        const dir = input.getHorizontal();
-        if (dir !== 0) this.facing = dir;
-
-        // --- Melee slash: spawn a hitbox in the facing direction (off cooldown) ---
-        // Allowed in every movement state (including mid-dash) so a dash-slash works.
-        if (this._consumeAttack()) {
-            this.attackHitbox.trigger();
+        // --- Advance + cull free projectiles (flame travels; bursts age out) ---
+        for (const p of this.projectiles) p.update();
+        if (this.projectiles.length) {
+            this.projectiles = this.projectiles.filter((p) => p.isActive);
         }
+
+        // --- Track facing from horizontal input (locked while attacking/diving) ---
+        const dir = input.getHorizontal();
+        if (dir !== 0 && this.comboStep === 0 && this.airDiveState === 'none') {
+            this.facing = dir;
+        }
+
+        // --- Edge-detected attack press (consumed once) ---
+        const pressed = this._consumeAttack();
+
+        // === REQUIREMENT 2: Diagonal Air Dive (in-progress handling) ============
+        if (this.airDiveState !== 'none') {
+            if (this.airDiveState === 'dive' && this.isGrounded) {
+                // Landed: drop the Fear Strike shockwave and return to normal control.
+                this._spawnFearShockwave();
+                this.airDiveState = 'none';
+                this.velocityX = 0;
+                if (typeof input.consumeJump === 'function') input.consumeJump(); // no surprise hop
+                // fall through to normal control this frame
+            } else if (this.airDiveState === 'freeze') {
+                // Hang in the air for a split second (no gravity), then launch down.
+                this.velocityX = 0;
+                this.velocityY = 0;
+                if (--this._airDiveFreezeTimer <= 0) {
+                    this.airDiveState = 'dive';
+                    this.velocityX = this.attackDir * DIVE.vx;
+                    this.velocityY = DIVE.vy; // positive = downward
+                }
+                return;
+            } else { // 'dive', still airborne
+                // Locked diagonal descent (skip gravity so the angle stays constant).
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+                return;
+            }
+        }
+
+        // --- Start an air dive: attack pressed while airborne ---
+        if (pressed && !this.isGrounded && this.airDiveState === 'none' &&
+            this.comboStep === 0 && this.dashTimer <= 0) {
+            this.airDiveState = 'freeze';
+            this._airDiveFreezeTimer = DIVE.freeze;
+            this.attackDir = this._aimOrFacing();
+            this.facing = this.attackDir;
+            this.velocityX = 0;
+            this.velocityY = 0;
+            return;
+        }
+
+        // === REQUIREMENT 1: 4-hit ground combo ==================================
+        if (this.comboStep === 0) {
+            if (pressed && this.isGrounded && this.dashTimer <= 0) {
+                this._startComboHit(1);
+                this._updateCombo(); // integrate the first frame immediately
+                return;
+            }
+            // else: not attacking on the ground → fall through to normal movement
+        } else {
+            if (pressed) this.comboBuffered = true; // buffer a chain input
+            this._updateCombo();
+            return; // movement is fully driven by the combo while it runs
+        }
+
+        // === Normal movement (unchanged) =======================================
 
         // --- Dash trigger: a fast burst in the facing direction, off cooldown ---
         if (input.consumeDash() && this.dashCooldown <= 0 && this.dashTimer <= 0) {
@@ -216,6 +332,155 @@ export class Player {
         this.attackHitbox.reposition(this.x, this.y, this.facing);
     }
 
+    // -----------------------------------------------------------------------
+    // Combo FSM internals
+    // -----------------------------------------------------------------------
+
+    // Begin hit `n` (1..4): set the phase timeline, lock the attack direction,
+    // and fire that hit's effect (melee swing / flame / dash + blast).
+    _startComboHit(n) {
+        this.comboStep = n;
+        this.comboPhase = 'commit';
+        this.comboPhaseTimer = COMBO[n].commit;
+        this.comboBuffered = false;
+        this.attackDir = this._aimOrFacing();
+        this.facing = this.attackDir;
+
+        if (n === 1 || n === 2) {
+            // Hit 1: Horizontal Slash. Hit 2: Spinning Slash. Both step forward.
+            this.attackHitbox.configure(COMBO[n].box);
+            this.attackHitbox.reposition(this.x, this.y, this.attackDir);
+            this.attackHitbox.trigger(true); // force-fire; the FSM owns cadence
+            this.velocityX = this.attackDir * COMBO[n].step; // organic forward step
+            this.velocityY = 0;
+        } else if (n === 3) {
+            // Hit 3: Dark Flame Magic. Stand still; launch a moving projectile.
+            this.velocityX = 0;
+            this._spawnDarkFlame();
+        } else if (n === 4) {
+            // Hit 4: Explosive Finisher. Dash forward; the blast lands as it ends.
+            this._finisherDashTimer = FINISH.dashFrames;
+            this._explosionSpawned = false;
+            this.velocityX = this.attackDir * FINISH.dashSpeed;
+            this.velocityY = 0;
+        }
+    }
+
+    // Advance the active hit one frame: motion, phase transitions, chaining/reset.
+    _updateCombo() {
+        const step = this.comboStep;
+
+        // --- Per-frame motion ---
+        if (step === 4 && this._finisherDashTimer > 0) {
+            // Locked forward dash (no gravity/friction), catching up to the flame.
+            this._finisherDashTimer--;
+            this.velocityY = 0;
+            this.x += this.velocityX;
+        } else {
+            // Grounded slide: no directional input; friction bleeds the step-forward
+            // momentum to a stop; gravity keeps the Boss pinned (flat arena).
+            this.velocityX *= this.friction;
+            if (Math.abs(this.velocityX) < 0.05) this.velocityX = 0;
+            this.x += this.velocityX;
+            const g = this.velocityY > 0 ? this.gravity * 1.4 : this.gravity;
+            this.velocityY += g;
+            this.y += this.velocityY;
+        }
+
+        // --- Keep the melee hits' hitbox glued in front while it's live ---
+        if (step === 1 || step === 2) {
+            this.attackHitbox.reposition(this.x, this.y, this.attackDir);
+        }
+
+        // --- Phase timeline ---
+        if (this.comboPhaseTimer > 0) this.comboPhaseTimer--;
+
+        if (this.comboPhase === 'commit') {
+            if (this.comboPhaseTimer <= 0) {
+                // Finisher: the blast goes off exactly as the dash ends.
+                if (step === 4 && !this._explosionSpawned) {
+                    this._spawnFinisherExplosion();
+                    this._explosionSpawned = true;
+                }
+                this.comboPhase = 'recovery';
+                this.comboPhaseTimer = COMBO[step].recovery;
+            }
+        } else { // 'recovery' == the chain window
+            if (this.comboBuffered && step < 4) {
+                this._startComboHit(step + 1); // chain into the next hit
+            } else if (this.comboPhaseTimer <= 0) {
+                this._resetCombo();            // player stopped attacking → end combo
+            }
+        }
+    }
+
+    // REQUIREMENT 1: reset logic if the player stops attacking (or on interrupt).
+    _resetCombo() {
+        this.comboStep = 0;
+        this.comboPhase = null;
+        this.comboPhaseTimer = 0;
+        this.comboBuffered = false;
+        this._finisherDashTimer = 0;
+    }
+
+    // Hit 3 — spawn the moving Dark Flame projectile riding the ground forward.
+    _spawnDarkFlame() {
+        const flame = new Hitbox({
+            reach: 0, width: FLAME.width, height: FLAME.height,
+            duration: FLAME.frames, cooldown: 0,
+            damage: FLAME.damage, knockback: FLAME.knockback,
+            velocityX: this.attackDir * FLAME.speed, velocityY: 0,
+            kind: 'flame',
+        });
+        flame.x = this.x + this.attackDir * FLAME.spawnAhead;
+        flame.y = this.y + this.halfHeight - FLAME.height / 2; // ride the ground line
+        flame.facing = this.attackDir;
+        flame.trigger(true);
+        this.projectiles.push(flame);
+    }
+
+    // Hit 4 — spawn the massive circular finisher explosion (stationary AoE).
+    _spawnFinisherExplosion() {
+        const blast = new Hitbox({
+            reach: 0, width: EXPL.size, height: EXPL.size,
+            duration: EXPL.frames, cooldown: 0,
+            damage: EXPL.damage, knockback: EXPL.knockback,
+            kind: 'explosion',
+        });
+        blast.x = this.x + this.attackDir * EXPL.ahead;
+        blast.y = this.y; // centered on the Boss
+        blast.facing = this.attackDir;
+        blast.trigger(true);
+        this.projectiles.push(blast);
+    }
+
+    // REQUIREMENT 2 — spawn the air-dive landing shockwave, tagged isFearStrike.
+    _spawnFearShockwave() {
+        const wave = new Hitbox({
+            reach: 0, width: SHOCK.width, height: SHOCK.height,
+            duration: SHOCK.frames, cooldown: 0,
+            damage: SHOCK.damage, knockback: SHOCK.knockback,
+            kind: 'shockwave',
+            isFearStrike: true, // <-- main.js routes this to enemy.triggerFear()
+        });
+        wave.x = this.x;
+        wave.y = this.y + this.halfHeight - SHOCK.height / 2; // sit on the ground
+        wave.facing = this.attackDir;
+        wave.trigger(true);
+        this.projectiles.push(wave);
+    }
+
+    // All currently-live Boss hitboxes for the collision resolver in main.js:
+    // the melee swing (when active) plus every active projectile/AoE.
+    getActiveHitboxes() {
+        const out = [];
+        if (this.attackHitbox.isActive) out.push(this.attackHitbox);
+        for (const p of this.projectiles) {
+            if (p.isActive) out.push(p);
+        }
+        return out;
+    }
+
     /**
      * Take a hit. Honors the i-frame window: while invulnerable the hit is
      * ignored entirely (no HP loss, no re-knockback), which is what stops one of
@@ -228,6 +493,10 @@ export class Player {
      */
     takeDamage(amount, knockbackDir = 0) {
         if (this.iFrames > 0) return false;
+
+        // A real hit interrupts any combo or air dive in progress.
+        this._resetCombo();
+        this.airDiveState = 'none';
 
         this.hp = Math.max(0, this.hp - amount);
         this.iFrames = this.iFrameDuration;
@@ -245,7 +514,17 @@ export class Player {
     // Pick the animation clip from the Boss's CURRENT state. Rendering-only:
     // it reads physics/combat fields but never writes them.
     _animState() {
-        if (this.attackHitbox.isActive) return { name: 'attack', hold: 4 };
+        // Air dive overrides everything (REQUIREMENT 2).
+        if (this.airDiveState !== 'none') return { name: 'airDive', hold: 4 };
+
+        // 4-hit combo clips (REQUIREMENT 1).
+        switch (this.comboStep) {
+            case 1: return { name: 'attack1', hold: 4 }; // horizontal slash
+            case 2: return { name: 'attack2', hold: 3 }; // spinning slash
+            case 3: return { name: 'attack3', hold: 5 }; // casting magic
+            case 4: return { name: 'attack4', hold: 3 }; // explosive dash
+        }
+
         if (this.dashTimer > 0)         return { name: 'dash',   hold: 3 };
         if (!this.isGrounded) {
             if (this.jumpCount >= 2)    return { name: 'doubleJump', hold: 3 };
@@ -269,14 +548,23 @@ export class Player {
         if (!frame) return;
 
         const feetY = this.y + this.halfHeight;            // the sprite stands here
-        const dashing = this.dashTimer > 0;
 
-        // FACING: the sword must always point at the Hero, so we flip by aimDir.
-        // EXCEPTION: while dashing the Boss is a drill, so it points the way it
-        // travels (the dash direction), not at the Hero.
+        const attacking = this.comboStep > 0;
+        const diving = this.airDiveState !== 'none';
+        // The finisher dash reads as a "drill" too, so treat it like a dash for FX.
+        const dashing = this.dashTimer > 0 || (this.comboStep === 4 && this._finisherDashTimer > 0);
+
+        // FACING:
+        //   - dashing (Shift dash or finisher dash): point the way we travel.
+        //   - attacking / diving: face the locked attack direction (sword + momentum agree).
+        //   - otherwise: face the Hero (aimDir) so the sword ALWAYS points at them.
         const travelDir = Math.sign(this.velocityX) || this.facing;
-        const flip = dashing ? (travelDir === -1) : (this.aimDir === -1);
-        const aimDir = this.aimDir;                         // for the void-edge glow
+        let flip;
+        if (dashing) flip = (travelDir === -1);
+        else if (attacking || diving) flip = (this.attackDir === -1);
+        else flip = (this.aimDir === -1);
+
+        const fxDir = (attacking || diving) ? this.attackDir : this.aimDir; // void-edge aim
         const tint = this.hitFlash > 0 ? '#ffffff' : null;  // white hit-flash
 
         const hpx = frame.length * BOSS_PIXEL;
@@ -295,6 +583,9 @@ export class Player {
         if (this.isGrounded) {
             SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * BOSS_PIXEL * 0.6);
         }
+
+        // --- Ground-level projectiles BEHIND the Boss (Dark Flame, shockwave) ---
+        this._drawProjectiles(ctx, 'under');
 
         // --- FX layer (drawn BEHIND the sprite) ---
         if (this._dashTrail.length > 1) {
@@ -315,7 +606,7 @@ export class Player {
                 intensity: this.hitFlash > 0 ? 1.7 : 1,
             });
             // REQUIREMENT 2: a swirling void glow riding on the blade.
-            SpriteManager.drawVoidEdge(ctx, this.x + aimDir * hpx * 0.30, bodyCY - hpx * 0.16, aimDir, {
+            SpriteManager.drawVoidEdge(ctx, this.x + fxDir * hpx * 0.30, bodyCY - hpx * 0.16, fxDir, {
                 radius: hpx * 0.20,
                 intensity: this.hitFlash > 0 ? 1.6 : 1,
             });
@@ -327,12 +618,35 @@ export class Player {
         });
         this._spriteTopY = res ? res.originY : null;
 
+        // --- Finisher explosion punches OVER the Boss for maximum impact ---
+        this._drawProjectiles(ctx, 'over');
+
         // Floating HP bar stays (now anchored above the sprite's head).
         this.drawHealthBar(ctx);
     }
 
-    // (The old golden-crescent drawSwordSwing() was removed — the pixel-art
-    //  'attack' animation frames now render the Boss's sword swing.)
+    // Render the spawned projectiles/AoE. `layer` controls draw order vs the Boss:
+    // 'under' = ground flame + shockwave (behind), 'over' = finisher blast (front).
+    _drawProjectiles(ctx, layer) {
+        for (const p of this.projectiles) {
+            if (!p.isActive) continue;
+            const prog = p.lifeProgress;
+            if (layer === 'under' && p.kind === 'flame') {
+                SpriteManager.drawDarkFlame(ctx, p.x, p.y, p.facing, {
+                    progress: prog, width: p.width, height: p.height,
+                });
+            } else if (layer === 'under' && p.kind === 'shockwave') {
+                // Anchor the ring at the box's bottom (the ground line).
+                SpriteManager.drawShockwave(ctx, p.x, p.y + p.halfHeight, {
+                    progress: prog, radius: p.halfWidth,
+                });
+            } else if (layer === 'over' && p.kind === 'explosion') {
+                SpriteManager.drawExplosion(ctx, p.x, p.y, {
+                    progress: prog, radius: p.halfWidth,
+                });
+            }
+        }
+    }
 
     // Floating HP bar above the Boss (drawn in world space, under the camera transform).
     drawHealthBar(ctx) {

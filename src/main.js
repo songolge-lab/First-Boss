@@ -141,6 +141,9 @@ function spawnEnemy() {
     const encounter = getEncounter(currentEncounterId);
     enemy.applyStats(encounter.current_encounter_stats, encounter.active_mechanics);
     enemy.y = floor.y - enemy.halfHeight; // place feet exactly on the floor
+
+    // A freshly resurrected Hero is never feared — clear any leftover Boss aura.
+    if (player && typeof player.setFearAura === 'function') player.setFearAura(0);
 }
 
 // AABB ground detection: snap an entity to the floor surface and flag it grounded.
@@ -188,6 +191,13 @@ const states = {
             // drives the sprite flip + void-sword aim and never touches physics
             // or combat. (Our arena has a single live Hero in `enemy`.)
             if (enemy) player.faceHero(enemy.x);
+
+            // Mirror the Hero's 4s Fear Status onto the Boss so its render step can
+            // flare a black/red flaming "empowered" aura for exactly that window.
+            // Pass 0 when the Hero isn't feared. Cosmetic only.
+            if (enemy && typeof player.setFearAura === 'function') {
+                player.setFearAura(enemy.fearStatusTimer || 0);
+            }
 
             // Resolve physics against the level after movement.
             resolveFloorCollision(player);
@@ -411,15 +421,15 @@ function draw() {
     // Atmosphere over the top of everything, then screen-space overlays.
     throneRoom.drawVignette(ctx, width, height);
 
-    // FEAR STUN: while the Hero (gameState.enemies[0] == `enemy`) is fear-stunned,
-    // the Boss's dread floods the screen with creeping darkness. Drawn here in
+    // FEAR STATUS: while the Hero is under the 4s Fear Status, the Boss's dread
+    // floods the LEFT/RIGHT edges with roaring black/red flames. Drawn here in
     // SCREEN space -- after the camera transform has been restored -- so the
-    // vignette covers the whole viewport, not the world.
-    if (enemy && enemy.fearTimer > 0) {
-        SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height);
-        // For a smooth fade as the stun wears off, pass an intensity instead:
-        //   SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height,
-        //       { intensity: Math.min(1, enemy.fearTimer / 18) });
+    // fire walls cover the whole viewport, not the world. Intensity holds at full
+    // and fades over the last ~0.4s as the debuff lapses.
+    if (enemy && enemy.fearStatusTimer > 0) {
+        SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height, {
+            intensity: Math.min(1, enemy.fearStatusTimer / 24),
+        });
     }
 
     if (gameState === State.GAMEOVER) {

@@ -714,104 +714,239 @@ export class SpriteManager {
     }
 
     /**
-     * Light-wave magic projectile (the Hero's 3-stage ranged combo). Glowing
-     * yellow/white energy whose SHAPE is chosen by `waveType`:
-     *   1 = diagonal twin-slash, 2 = vertical standing wave, 3 = crossing X.
-     * Self-positions at (x, y); call once per live wave from the Hero's draw().
+     * The Hero's HOLY LIGHT WAVE — a divine, white-hot golden crescent slash that
+     * looks like it is tearing the air open ("Holy Lightning"). Fully procedural,
+     * self-positioning at (x, y) and self-animating off opts.time.
      *
-     * @param {number} waveType 1 | 2 | 3
-     * @param {number} facing   +1 / -1 travel direction (mirrors the diagonal)
-     * @param {object} [opts]   { time(ms), alpha }  alpha lets the caller fade by lifetime
+     * The blade is a sharp, fat-bellied crescent moon traced with quadratic/bezier
+     * curves (pointed cusps, thick belly, hooked like the reference). It is built
+     * up in concentric glow layers under heavy golden shadowBlur:
+     *     soft gold aura -> thick gold body (+ glowing gold stroke)
+     *                    -> pale gold -> blinding white-hot core -> searing centerline
+     * then dressed with motion-smear ghosts, trailing "speed" slashes peeling off
+     * the back tip, and energy sparks flying along the edge.
+     *
+     * SCALE: sized to MATCH the ~144px Boss (default size = 140). The solid blade
+     * spans about one Boss-height tip-to-tip — menacing and proportionally matched,
+     * never bigger than the Boss. Only the soft glow bleeds slightly past, which is
+     * exactly what a holy glow should do.  (If your call site still passes
+     * opts.size = 210 from the old version, drop it or set it to ~140.)
+     *
+     * waveType:  1 = powerful DIAGONAL slash
+     *            2 = powerful VERTICAL / upright slash
+     *            3 = devastating X-CROSS  (two intersecting crescents)
+     * facing:    +1 / -1  mirrors the whole slash along travel direction.
+     *
+     * NOTE: `opts` is kept optional so existing call sites (which pass time/alpha
+     * for the lifetime animation + fade) still work — calling it as
+     * drawLightWave(ctx, x, y, waveType, facing) alone is also valid.
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} x
+     * @param {number} y          world position (slash centre)
+     * @param {number} waveType   1 | 2 | 3
+     * @param {number} facing     +1 / -1 (mirrors the slash)
+     * @param {object} [opts]      { time(ms), alpha, size }  alpha fades by lifetime
      */
     static drawLightWave(ctx, x, y, waveType = 1, facing = 1, opts = {}) {
         const {
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            time  = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
             alpha = 1,
+            size  = 140,                 // ~= Boss height (24 * BOSS_PIXEL = 144): matched, not bigger
         } = opts;
-        const t = time / 1000;
-        const dir = facing >= 0 ? 1 : -1;
-        const flick = 0.78 + 0.22 * Math.sin(t * 22 + waveType * 1.7); // fast energy flicker
+        if (alpha <= 0 || size <= 0) return;
 
-        // Footprint per type (roughly matches the gameplay hitbox half-extents).
-        const dims = waveType === 2 ? { hw: 9, hh: 30 }
-                   : waveType === 3 ? { hw: 22, hh: 22 }
-                   : { hw: 16, hh: 16 };
+        const t   = time / 1000;
+        const dir = facing >= 0 ? 1 : -1;
+        // High-frequency searing flicker -> drives brightness + a little thickness pulse.
+        const flick = 0.82 + 0.18 * Math.sin(t * 22 + waveType * 1.9);
+
+        // --- Crescent geometry (local frame, rotated per type below) -------------
+        // Rs = radius of the spine arc, so the blade spans ~size px tip-to-tip.
+        const Rs    = size * 0.50;
+        const sweep = waveType === 2 ? 2.70 : 2.85;                 // arc length (radians, ~155-163deg)
+        const Wmax  = size * (waveType === 3 ? 0.150 : waveType === 2 ? 0.165 : 0.175)
+                           * (0.90 + 0.14 * flick);                 // fattest half-width (pulses)
+        const N     = 26;                                           // spine samples -> bezier anchors
+
+        // Orientation per type, authored for dir = +1 (mirrored as a whole below).
+        const baseRot = waveType === 2 ? -Math.PI / 2 + 0.15        // upright / vertical slash
+                      : waveType === 3 ? -Math.PI * 0.62            // leading blade of the X
+                      :                  -Math.PI * 0.30;           // diagonal slash
 
         ctx.save();
         ctx.translate(x, y);
         ctx.globalAlpha *= alpha;
-        ctx.lineCap = 'round';
+        const baseGA = ctx.globalAlpha;
+        ctx.scale(dir, 1);                       // mirror the whole slash by travel direction
+        ctx.lineCap  = 'round';
+        ctx.lineJoin = 'round';
 
-        // Soft golden halo behind the glyph.
-        const R = Math.max(dims.hw, dims.hh) * 1.6;
-        const halo = ctx.createRadialGradient(0, 0, 1, 0, 0, R);
-        halo.addColorStop(0.0, `rgba(255, 245, 200, ${0.55 * flick})`);
-        halo.addColorStop(0.4, `rgba(255, 215, 110, ${0.30 * flick})`);
-        halo.addColorStop(1.0, 'rgba(255, 200, 60, 0)');
-        ctx.fillStyle = halo;
-        ctx.beginPath();
-        ctx.arc(0, 0, R, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Two-pass strokes: a wide warm-gold underglow, then a white-hot core.
-        const passes = [
-            { w: 6.0, color: `rgba(255, 200, 70, ${0.90 * flick})`, blur: 16, glow: 'rgba(255, 190, 50, 0.95)' },
-            { w: 2.4, color: 'rgba(255, 255, 240, 0.98)',           blur: 8,  glow: 'rgba(255, 240, 180, 1)' },
-        ];
-        const stroke = (path) => {
-            for (const p of passes) {
-                ctx.lineWidth = p.w;
-                ctx.strokeStyle = p.color;
-                ctx.shadowBlur = p.blur;
-                ctx.shadowColor = p.glow;
-                ctx.beginPath();
-                path();
-                ctx.stroke();
+        // Trace a CLOSED outline smoothly through `pts` using quadratic curves
+        // (midpoint method) -> organic, sharp-tipped bezier edges.
+        const smoothClosed = (pts) => {
+            const n = pts.length;
+            ctx.beginPath();
+            ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+            for (let i = 0; i < n; i++) {
+                const cur = pts[i], nxt = pts[(i + 1) % n];
+                ctx.quadraticCurveTo(cur.x, cur.y, (cur.x + nxt.x) / 2, (cur.y + nxt.y) / 2);
             }
+            ctx.closePath();
         };
 
-        if (waveType === 2) {
-            // Vertical standing wave: tall central blade + two flanking bars.
-            const { hw, hh } = dims;
-            stroke(() => {
-                ctx.moveTo(0, -hh); ctx.lineTo(0, hh);
-                ctx.moveTo(-hw, -hh * 0.6); ctx.lineTo(-hw, hh * 0.6);
-                ctx.moveTo(hw, -hh * 0.6); ctx.lineTo(hw, hh * 0.6);
-            });
-        } else if (waveType === 3) {
-            // Crossing X with a bright center node; shimmers slightly.
-            const { hw, hh } = dims;
-            ctx.rotate(0.12 * Math.sin(t * 6));
-            stroke(() => {
-                ctx.moveTo(-hw, -hh); ctx.lineTo(hw, hh);
-                ctx.moveTo(hw, -hh); ctx.lineTo(-hw, hh);
-            });
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = 'rgba(255, 240, 180, 1)';
-            ctx.fillStyle = 'rgba(255, 255, 245, 0.95)';
-            ctx.beginPath();
-            ctx.arc(0, 0, 3.2 + flick, 0, Math.PI * 2);
+        // Build one crescent at rotation `rot`: spine samples + an outline()
+        // generator that scales half-width by `k` (for the concentric layers).
+        const buildCrescent = (rot) => {
+            const a0 = rot - sweep / 2, a1 = rot + sweep / 2;
+            const spine = [];
+            for (let s = 0; s <= N; s++) {
+                const u = s / N, ang = a0 + (a1 - a0) * u;
+                spine.push({ ang, u, x: Math.cos(ang) * Rs, y: Math.sin(ang) * Rs });
+            }
+            // 0 at both tips (sharp cusps), fat belly, biased toward the front tip
+            // for the hooked / comma silhouette of the reference image.
+            const halfW = (u) =>
+                Math.max(0, Wmax * Math.pow(Math.sin(Math.PI * u), 0.60) * (1 + 0.35 * (u - 0.5)));
+            const outline = (k) => {
+                const pts = [];
+                for (let s = 0; s <= N; s++) {                       // outer edge: back -> front
+                    const p = spine[s], w = halfW(p.u) * k;
+                    pts.push({ x: p.x + Math.cos(p.ang) * w, y: p.y + Math.sin(p.ang) * w });
+                }
+                for (let s = N; s >= 0; s--) {                       // inner edge: front -> back
+                    const p = spine[s], w = halfW(p.u) * k;
+                    pts.push({ x: p.x - Math.cos(p.ang) * w, y: p.y - Math.sin(p.ang) * w });
+                }
+                return pts;
+            };
+            return { spine, outline, tipBack: spine[0] };
+        };
+
+        // Render one crescent with the full holy-glow stack (or a cheap ghost smear).
+        const paintCrescent = (rot, ghost = false) => {
+            const cr = buildCrescent(rot);
+
+            if (!ghost) {
+                // (a) Soft holy aura hugging the blade — fat, heavily blurred gold.
+                ctx.shadowBlur  = 40;                                // <- pushed to the max (30-40)
+                ctx.shadowColor = `rgba(255, 205, 70, ${0.95 * flick})`;
+                ctx.fillStyle   = `rgba(255, 198, 72, ${0.34 * flick})`;
+                smoothClosed(cr.outline(1.55));
+                ctx.fill();
+            }
+
+            // (b) Thick gold BODY of the blade.
+            ctx.shadowBlur  = ghost ? 16 : 34;
+            ctx.shadowColor = 'rgba(255, 200, 60, 0.95)';
+            ctx.fillStyle   = ghost ? 'rgba(255, 210, 90, 0.50)' : 'rgba(255, 216, 96, 0.96)';
+            smoothClosed(cr.outline(1.0));
             ctx.fill();
-        } else {
-            // Diagonal twin-slash, leaning along travel direction.
-            const { hw, hh } = dims;
-            stroke(() => {
-                ctx.moveTo(-hw * dir, -hh); ctx.lineTo(hw * dir, hh);
-                ctx.moveTo(-hw * dir, -hh * 0.35); ctx.lineTo(hw * 0.6 * dir, hh);
-            });
+
+            if (!ghost) {
+                // (b2) Intense, thick golden outer STROKE around the body.
+                ctx.shadowBlur  = 32;
+                ctx.shadowColor = 'rgba(255, 196, 56, 0.95)';
+                ctx.strokeStyle = 'rgba(255, 208, 80, 0.90)';
+                ctx.lineWidth   = Math.max(1.5, size * 0.016);
+                smoothClosed(cr.outline(1.0));
+                ctx.stroke();
+            }
+
+            // (c) Pale-gold mid layer (smooth white -> gold falloff).
+            ctx.shadowBlur  = ghost ? 8 : 30;
+            ctx.shadowColor = 'rgba(255, 238, 168, 0.95)';
+            ctx.fillStyle   = 'rgba(255, 240, 172, 0.96)';
+            smoothClosed(cr.outline(0.60));
+            ctx.fill();
+
+            // (d) Blinding WHITE-HOT core (thin inner ribbon).
+            ctx.shadowBlur  = ghost ? 6 : 24;
+            ctx.shadowColor = 'rgba(255, 250, 214, 1)';
+            ctx.fillStyle   = 'rgba(255, 255, 250, 0.98)';
+            smoothClosed(cr.outline(0.30));
+            ctx.fill();
+
+            if (!ghost) {
+                // (e) Crisp amber rim — the darker "tearing" edge from the reference.
+                ctx.shadowBlur  = 0;
+                ctx.strokeStyle = 'rgba(230, 150, 28, 0.55)';
+                ctx.lineWidth   = Math.max(1, size * 0.006);
+                smoothClosed(cr.outline(1.0));
+                ctx.stroke();
+
+                // (f) Searing white centerline down the spine (the "lightning").
+                ctx.beginPath();
+                cr.spine.forEach((p, s) => (s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+                ctx.shadowBlur  = 18;
+                ctx.shadowColor = 'rgba(255, 232, 150, 1)';
+                ctx.strokeStyle = 'rgba(255, 248, 206, 0.95)';
+                ctx.lineWidth   = Math.max(1.5, size * 0.018);
+                ctx.stroke();
+                ctx.shadowBlur  = 10;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                ctx.lineWidth   = Math.max(1, size * 0.008);
+                ctx.stroke();
+            }
+            return cr;
+        };
+
+        // 1) Motion-smear ghosts — faint shrinking trailing copies, drawn first.
+        for (let g = 3; g >= 1; g--) {
+            ctx.save();
+            ctx.rotate(-0.06 * g);
+            ctx.scale(1 - 0.06 * g, 1 - 0.06 * g);
+            ctx.globalAlpha = baseGA * (0.18 / g);
+            paintCrescent(baseRot, true);
+            ctx.restore();
         }
 
-        // A few twinkling sparks riding the wave.
-        ctx.shadowBlur = 8;
-        for (let i = 0; i < 5; i++) {
-            const ph = (t * 1.6 + i / 5) % 1;
-            const sx = Math.sin(i * 3.1 + t * 4) * dims.hw * dir;
-            const sy = -dims.hh + ph * dims.hh * 2;
-            ctx.globalAlpha = (1 - ph) * 0.9 * flick * alpha;
-            ctx.fillStyle = i % 2 ? 'rgba(255, 255, 230, 0.95)' : 'rgba(255, 210, 90, 0.95)';
+        // 2) Main slash at full glory. Type 3 adds a second crossing crescent -> X.
+        ctx.globalAlpha = baseGA;
+        const main = paintCrescent(baseRot);
+        if (waveType === 3) {
+            ctx.save();
+            ctx.scale(1, -1);                    // reflect -> the two blades cross in an X
+            paintCrescent(baseRot);
+            ctx.restore();
+        }
+
+        // 3) Trailing sharp "speed" slashes peeling off the back tip (tearing air).
+        ctx.shadowBlur  = 16;
+        ctx.shadowColor = 'rgba(255, 220, 110, 0.90)';
+        const back = main.tipBack;
+        const ox = Math.cos(back.ang),               oy = Math.sin(back.ang);            // along the arc
+        const nx = Math.cos(back.ang + Math.PI / 2), ny = Math.sin(back.ang + Math.PI / 2);
+        for (let i = 0; i < 4; i++) {
+            const len = size * (0.22 + 0.10 * i) * (0.80 + 0.20 * Math.sin(t * 8 + i));
+            const off = (i - 1.5) * size * 0.014;
+            const sx  = back.x + nx * off, sy = back.y + ny * off;
+            ctx.globalAlpha = baseGA * (0.50 - 0.10 * i) * flick;
+            ctx.strokeStyle = i % 2 ? 'rgba(255, 214, 96, 0.90)' : 'rgba(255, 250, 220, 0.95)';
+            ctx.lineWidth   = Math.max(1, size * (0.012 - 0.002 * i));
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.quadraticCurveTo(                                    // bow the streak for a "whip"
+                sx + ox * len * 0.5 + nx * len * 0.10,
+                sy + oy * len * 0.5 + ny * len * 0.10,
+                sx + ox * len, sy + oy * len);
+            ctx.stroke();
+        }
+
+        // 4) Energy sparks flying along the blade edge.
+        ctx.shadowBlur = 12;
+        const SP = waveType === 3 ? 20 : 14;
+        for (let i = 0; i < SP; i++) {
+            const u   = (t * 0.9 + i / SP) % 1;
+            const ang = (baseRot - sweep / 2) + sweep * u;
+            const env = Math.sin(Math.PI * u);
+            const r   = Rs + Wmax * (0.5 + 0.5 * env) + 0.05 * Rs * Math.sin(t * 6 + i * 1.3);
+            const sx  = Math.cos(ang) * r, sy = Math.sin(ang) * r;
+            ctx.globalAlpha = baseGA * (0.30 + 0.65 * env) * flick;
+            ctx.fillStyle   = i % 3 === 0 ? 'rgba(255, 255, 240, 1)' : 'rgba(255, 212, 92, 1)';
             ctx.shadowColor = ctx.fillStyle;
             ctx.beginPath();
-            ctx.arc(sx, sy, 1.4 + (i % 2), 0, Math.PI * 2);
+            ctx.arc(sx, sy, 1.4 + 2.4 * env, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -905,15 +1040,16 @@ export class SpriteManager {
     }
 
     /**
-     * SCREEN-SPACE fear effect — call when the Hero is fear-stunned. Creeping
-     * dark shadows close in from the edges (a violet-tinted vignette + breathing
-     * shadow blobs) with the Boss's aura wisps drifting along the rim, selling
-     * the Boss's looming presence. Draw it in SCREEN space (after the camera
-     * transform is restored), e.g. right before the game-over banner.
+     * SCREEN-SPACE fear effect — call while the Hero is under the 4s Fear Status.
+     * Walls of roaring black-and-crimson fire climb the LEFT and RIGHT edges only
+     * (top & bottom are intentionally clear now). Each wall is a stack of
+     * overlapping sine-driven flame curtains — deep-black roots bleeding up into
+     * bright crimson — plus flickering bezier tongues that lick inward and rising
+     * embers. Draw in SCREEN space, after the camera transform is restored.
      *
      * @param {number} canvasWidth
      * @param {number} canvasHeight
-     * @param {object} [opts] { time(ms), intensity }  intensity fades it in/out.
+     * @param {object} [opts] { time(ms), intensity }  intensity (0..1) fades it in/out.
      */
     static drawFearScreenEffect(ctx, canvasWidth, canvasHeight, opts = {}) {
         const {
@@ -924,71 +1060,212 @@ export class SpriteManager {
         if (A <= 0) return;
         const t = time / 1000;
         const W = canvasWidth, H = canvasHeight;
-        const cx = W / 2, cy = H / 2;
-        const pulse = 0.85 + 0.15 * Math.sin(t * 2.2);
+        if (W <= 0 || H <= 0) return; // nothing to paint on a zero-size canvas
+
+        // How far the fire reaches in from each side (capped so wide monitors
+        // don't swallow the play area).
+        const band = Math.min(W * 0.24, 280);
+
+        // Layered curtains, back (darkest) -> front (brightest lick). `reach` is a
+        // fraction of `band`; amp/freq/speed shape the sine sway; `stops` paint the
+        // black -> crimson -> red heat ramp. Each stop is [offset, "r,g,b", alpha].
+        const LAYERS = [
+            { reach: 0.62, amp: 0.10, freq: 2.6, speed: 1.4, a: 0.95,
+              stops: [[0, '2,0,0', 0.96], [0.45, '45,3,3', 0.85], [0.80, '120,10,9', 0.45], [1, '150,16,12', 0]] },
+            { reach: 0.84, amp: 0.16, freq: 1.9, speed: 2.1, a: 0.80,
+              stops: [[0, '10,0,0', 0.0], [0.40, '130,10,8', 0.55], [0.78, '205,26,18', 0.30], [1, '235,44,26', 0]] },
+            { reach: 1.04, amp: 0.24, freq: 1.4, speed: 2.9, a: 0.70,
+              stops: [[0, '60,3,2', 0.0], [0.50, '200,22,16', 0.0], [0.82, '255,60,38', 0.35], [1, '255,110,52', 0]] },
+        ];
 
         ctx.save();
 
-        // 0) Faint full-screen violet dread wash.
-        ctx.fillStyle = `rgba(20, 6, 38, ${0.10 * A * pulse})`;
-        ctx.fillRect(0, 0, W, H);
+        for (const side of [-1, 1]) {            // -1 = left edge, +1 = right edge
+            const edgeX = side < 0 ? 0 : W;
+            const inX = -side;                    // inward screen direction (+x for left)
+            const steps = 26;
 
-        // 1) Heavy creeping vignette with a violet (Boss) tint; closes in as it pulses.
-        const inner = Math.min(W, H) * (0.30 - 0.05 * pulse);
-        const outer = Math.hypot(W, H) * 0.62;
-        const vg = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
-        vg.addColorStop(0.00, 'rgba(8, 2, 14, 0)');
-        vg.addColorStop(0.55, `rgba(20, 6, 38, ${0.45 * A})`);
-        vg.addColorStop(0.82, `rgba(12, 3, 24, ${0.78 * A * pulse})`);
-        vg.addColorStop(1.00, `rgba(2, 0, 6, ${0.96 * A})`);
-        ctx.fillStyle = vg;
-        ctx.fillRect(0, 0, W, H);
+            // --- stacked wavy flame curtains (overlapping sine waves) ----------
+            for (const L of LAYERS) {
+                const grad = ctx.createLinearGradient(edgeX, 0, edgeX + inX * band, 0);
+                for (const [p, rgb, al] of L.stops) grad.addColorStop(p, `rgba(${rgb},${al * A})`);
+                ctx.fillStyle = grad;
 
-        // 2) Creeping shadow blobs reaching in from each edge.
-        const reachX = Math.min(W, H) * 0.34;
-        const blobs = [
-            { x: 0, y: cy, rx: reachX, ry: H * 0.62 },
-            { x: W, y: cy, rx: reachX, ry: H * 0.62 },
-            { x: cx, y: 0, rx: W * 0.62, ry: reachX },
-            { x: cx, y: H, rx: W * 0.62, ry: reachX },
-        ];
-        for (let i = 0; i < blobs.length; i++) {
-            const b = blobs[i];
-            const breathe = 0.85 + 0.20 * Math.sin(t * 1.7 + i * 1.3);
-            const g = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, Math.max(b.rx, b.ry) * breathe);
-            g.addColorStop(0.0, `rgba(18, 5, 36, ${0.55 * A})`);
-            g.addColorStop(0.6, `rgba(10, 3, 22, ${0.28 * A})`);
-            g.addColorStop(1.0, 'rgba(4, 1, 8, 0)');
+                ctx.beginPath();
+                ctx.moveTo(edgeX, -2);
+                ctx.lineTo(edgeX, H + 2);         // straight outer screen edge
+                for (let s = steps; s >= 0; s--) {            // wavy inner boundary, bottom -> top
+                    const y = (s / steps) * H;
+                    const u = y / H;
+                    // big slow undulation + a faster flicker => a living, roaring edge.
+                    const wob =
+                        Math.sin(u * L.freq * Math.PI * 2 + t * L.speed + side * 1.3) * L.amp +
+                        Math.sin(u * (L.freq * 2.7) * Math.PI * 2 - t * (L.speed * 1.7)) * (L.amp * 0.4);
+                    const reach = band * (L.reach * (0.78 + 0.22 * (0.5 + 0.5 * Math.sin(t * 0.7 + side))) + wob);
+                    ctx.lineTo(edgeX + inX * Math.max(0, reach), y);
+                }
+                ctx.closePath();
+                ctx.globalAlpha = L.a;
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // --- flickering bezier tongues licking inward off the front curtain --
+            const TONGUES = 7;
+            ctx.shadowBlur = 18;
+            for (let i = 0; i < TONGUES; i++) {
+                const base = (i + 0.5) / TONGUES;
+                const ry = base * H + Math.sin(t * 1.1 + i * 2.2) * H * 0.03;
+                const flick = 0.5 + 0.5 * Math.sin(t * 9 + i * 1.9);
+                const len = band * (0.55 + 0.65 * flick);
+                const halfH = H * (0.05 + 0.03 * flick);
+                const rootX = edgeX + inX * band * 0.30;
+                const tipX = edgeX + inX * (band * 0.30 + len);
+                const sway = Math.sin(t * 3.3 + i) * H * 0.02;
+
+                const g = ctx.createLinearGradient(rootX, 0, tipX, 0);
+                g.addColorStop(0.00, 'rgba(8, 0, 0, 0)');
+                g.addColorStop(0.25, `rgba(150, 12, 10, ${0.55 * A * flick})`);
+                g.addColorStop(0.70, `rgba(238, 40, 30, ${0.6 * A * flick})`);
+                g.addColorStop(1.00, 'rgba(255, 110, 52, 0)');
+                ctx.fillStyle = g;
+                ctx.shadowColor = `rgba(220, 40, 20, ${0.7 * A})`;
+
+                ctx.beginPath();
+                ctx.moveTo(rootX, ry - halfH);
+                ctx.quadraticCurveTo(rootX + inX * len * 0.5, ry - halfH * 0.3 + sway, tipX, ry + sway);
+                ctx.quadraticCurveTo(rootX + inX * len * 0.5, ry + halfH * 0.3 + sway, rootX, ry + halfH);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // --- rising embers (additive, so they glow where they pile up) ------
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            const EM = 16;
+            for (let i = 0; i < EM; i++) {
+                const phase = (t * 0.5 + i / EM) % 1;             // 1 -> 0 rise
+                const ex = edgeX + inX * band * (0.12 + 0.7 * ((i * 7) % 5) / 5) + Math.sin(t * 2 + i) * 8;
+                const ey = H - phase * H * 1.05;
+                ctx.globalAlpha = (1 - phase) * 0.5 * A;
+                ctx.fillStyle = i % 4 === 0 ? 'rgba(255, 150, 70, 1)' : 'rgba(255, 48, 28, 1)';
+                ctx.beginPath();
+                ctx.arc(ex, ey, 1.2 + (1 - phase) * 2.0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * Boss "empowered" aura — call while the Hero's 4s Fear Status is live
+     * (Player.fearAuraActive). The same roaring black-and-crimson fire wraps the
+     * Boss: a bed of dark-red glow, a rising crown of flickering bezier flame
+     * tongues (black roots -> bright crimson tips) curling up the silhouette,
+     * swirling crimson sparks, and rising embers. Draw it BEFORE the Boss sprite
+     * (like drawAura) so the figure stands inside the fire. Pass `intensity`
+     * (e.g. fearAuraTimer/30) to fade it out as the debuff lapses.
+     *
+     * @param {number} x, y   the Boss figure centre (FX anchor), world space.
+     * @param {object} [opts] { radius, time(ms), intensity }
+     */
+    static drawFearBossAura(ctx, x, y, opts = {}) {
+        const {
+            radius = 70,
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+        } = opts;
+        const A = intensity;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const R = radius;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 0) Bed of dark-red fire pooled around/under the figure.
+        const bed = ctx.createRadialGradient(0, R * 0.5, R * 0.1, 0, R * 0.5, R * 1.25);
+        bed.addColorStop(0.00, `rgba(120, 10, 8, ${0.40 * A})`);
+        bed.addColorStop(0.45, `rgba(60, 4, 4, ${0.30 * A})`);
+        bed.addColorStop(1.00, 'rgba(4, 0, 0, 0)');
+        ctx.fillStyle = bed;
+        ctx.beginPath();
+        ctx.ellipse(0, R * 0.5, R * 1.25, R * 0.9, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1) Rising crown of bezier flame tongues wrapping the silhouette. Roots
+        //    ring the body; each rises (fire goes up) with an outward lean on the
+        //    sides, sways, flickers in height, and is filled with a black-root ->
+        //    crimson -> bright-red gradient (the reference heat ramp).
+        const TONGUES = 16;
+        for (let i = 0; i < TONGUES; i++) {
+            const ang = (i / TONGUES) * Math.PI * 2;
+            const rootX = Math.cos(ang) * R * 0.72;
+            const rootY = Math.sin(ang) * R * 0.52 + R * 0.18;   // ring sits a touch low
+            const flick = 0.5 + 0.5 * Math.sin(t * 10 + i * 1.7);
+            const len = R * (0.55 + 0.6 * flick) * (0.7 + 0.3 * Math.sin(t * 1.3 + i));
+            const halfW = R * (0.10 + 0.04 * flick);
+            const lean = Math.sign(rootX || 1) * R * 0.18;        // lean outward on the flanks
+            const sway = Math.sin(t * 3.0 + i * 1.3) * R * 0.10;
+            const tipX = rootX + lean + sway;
+            const tipY = rootY - len;                            // upward
+
+            const g = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
+            g.addColorStop(0.00, `rgba(6, 0, 0, ${0.85 * A})`);   // near-black root
+            g.addColorStop(0.30, `rgba(120, 10, 8, ${0.75 * A})`);
+            g.addColorStop(0.68, `rgba(228, 32, 26, ${0.7 * A * (0.6 + 0.4 * flick)})`);
+            g.addColorStop(1.00, 'rgba(255, 110, 52, 0)');        // bright fading tip
             ctx.fillStyle = g;
-            ctx.beginPath();
-            ctx.ellipse(b.x, b.y, b.rx * breathe, b.ry * breathe, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
+            ctx.shadowColor = `rgba(220, 40, 20, ${0.6 * A})`;
+            ctx.shadowBlur = 14;
 
-        // 3) Boss-aura wisps drifting along the screen rim (violet, rare red sparks).
-        const N = 26;
-        const peri = 2 * (W + H);
-        ctx.shadowBlur = 12;
-        for (let i = 0; i < N; i++) {
-            const u = ((i / N) + t * 0.03) % 1;
-            const d = u * peri;
-            let px, py;
-            if (d < W) { px = d; py = 0; }
-            else if (d < W + H) { px = W; py = d - W; }
-            else if (d < 2 * W + H) { px = W - (d - (W + H)); py = H; }
-            else { px = 0; py = H - (d - (2 * W + H)); }
-            // pull each wisp slightly inward from the very edge
-            px += (cx - px) * 0.06;
-            py += (cy - py) * 0.06;
-            const s = 2 + 4 * ((i * 7) % 5) / 5;
-            const red = i % 7 === 0;
-            ctx.globalAlpha = (0.18 + 0.34 * (0.5 + 0.5 * Math.sin(t * 1.9 + i))) * A;
-            ctx.fillStyle = red ? 'rgba(255, 50, 50, 0.9)' : 'rgba(130, 65, 200, 0.9)';
-            ctx.shadowColor = ctx.fillStyle;
+            // teardrop: two quadratics bowing out from the base corners to the tip.
+            const px = -(tipY - rootY), py = (tipX - rootX);      // axis perpendicular
+            const pl = Math.hypot(px, py) || 1;
+            const nx = px / pl, ny = py / pl;
             ctx.beginPath();
-            ctx.arc(px, py, s, 0, Math.PI * 2);
+            ctx.moveTo(rootX + nx * halfW, rootY + ny * halfW);
+            ctx.quadraticCurveTo(rootX + (tipX - rootX) * 0.5 + nx * halfW * 1.4,
+                                 rootY + (tipY - rootY) * 0.5 + ny * halfW * 1.4,
+                                 tipX, tipY);
+            ctx.quadraticCurveTo(rootX + (tipX - rootX) * 0.5 - nx * halfW * 1.4,
+                                 rootY + (tipY - rootY) * 0.5 - ny * halfW * 1.4,
+                                 rootX - nx * halfW, rootY - ny * halfW);
+            ctx.closePath();
             ctx.fill();
         }
+        ctx.shadowBlur = 0;
+
+        // 2) Swirling crimson sparks + 3) rising embers (additive, last layer).
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const S = 20;
+        for (let i = 0; i < S; i++) {
+            const ang = t * (0.8 + 0.04 * i) + (i * Math.PI * 2) / S;
+            const orbit = R * (0.55 + 0.35 * Math.sin(t * 1.4 + i * 1.9));
+            const sx = Math.cos(ang) * orbit;
+            const sy = Math.sin(ang) * orbit * 0.8 - R * 0.05;
+            ctx.globalAlpha = (0.2 + 0.5 * (0.5 + 0.5 * Math.sin(t * 2.3 + i))) * A;
+            ctx.fillStyle = i % 5 === 0 ? 'rgba(255, 150, 70, 1)' : 'rgba(235, 40, 24, 1)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.6 + 2.0 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        const E = 10;
+        for (let i = 0; i < E; i++) {
+            const phase = (t * 0.7 + i / E) % 1;
+            const ex = Math.sin((i * 12.9 + t) * 1.3) * R * 0.5;
+            const ey = R * 0.6 - phase * R * 1.6;
+            ctx.globalAlpha = (1 - phase) * 0.55 * A;
+            ctx.fillStyle = i % 3 === 0 ? 'rgba(255, 140, 60, 1)' : 'rgba(255, 50, 30, 1)';
+            ctx.beginPath();
+            ctx.arc(ex, ey, 1.4 + (1 - phase) * 1.7, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
 
         ctx.restore();
     }

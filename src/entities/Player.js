@@ -151,6 +151,14 @@ export class Player {
         // Recent world positions captured during a dash; used to render the
         // wind/vacuum streak trail behind the spinning 'drill'.
         this._dashTrail = [];
+
+        // --- Fear aura: the Boss "knows" the Hero is under the 4s Fear Status ---
+        // main.js refreshes this every PLAYING frame from enemy.fearStatusTimer
+        // (see setFearAura). draw() reads these to flare the black/red flaming
+        // "empowered" aura. A timer (not just a bool) lets that render fade out
+        // smoothly as the debuff lapses. Purely cosmetic — never touches physics.
+        this.fearAuraTimer = 0;       // frames the flaming aura should stay lit
+        this.fearAuraActive = false;  // convenience flag: true while the Hero is feared
     }
 
     // Self-contained attack input so NO changes to Input.js are required:
@@ -201,6 +209,21 @@ export class Player {
             const d = targetX - this.x;
             if (Math.abs(d) > 0.001) this.aimDir = d < 0 ? -1 : 1;
         }
+    }
+
+    /**
+     * Mirror the Hero's 4s Fear Status onto the Boss so draw() can flare a flaming
+     * "empowered" aura for exactly that window. Call ONCE PER FRAME from main.js,
+     * passing the Hero's remaining fear-status frames (0 when the Hero isn't
+     * feared). Purely cosmetic: it only sets the aura flag/timer and never reads
+     * or writes velocity, position, HP, i-frames, or the attack hitbox.
+     *
+     * @param {number} framesRemaining frames left on the Hero's fearStatusTimer.
+     */
+    setFearAura(framesRemaining = 0) {
+        const f = Number.isFinite(framesRemaining) ? Math.max(0, framesRemaining) : 0;
+        this.fearAuraActive = f > 0;
+        this.fearAuraTimer = f; // exact mirror; the fade-out tail is derived in draw()
     }
 
     update(input) {
@@ -609,6 +632,17 @@ export class Player {
             SpriteManager.drawVoidEdge(ctx, this.x + fxDir * hpx * 0.30, bodyCY - hpx * 0.16, fxDir, {
                 radius: hpx * 0.20,
                 intensity: this.hitFlash > 0 ? 1.6 : 1,
+            });
+        }
+
+        // FEAR EMPOWERMENT: while the Hero is under the 4s Fear Status (mirrored
+        // onto the Boss via setFearAura), roaring black/red flames wrap the Boss.
+        // Drawn here, BEHIND the sprite (like drawAura), so the figure stands
+        // inside the fire. Intensity holds at full, then fades over the last ~0.5s.
+        if (this.fearAuraActive) {
+            SpriteManager.drawFearBossAura(ctx, this.x, bodyCY, {
+                radius: hpx * 0.7,
+                intensity: Math.min(1, this.fearAuraTimer / 30),
             });
         }
 

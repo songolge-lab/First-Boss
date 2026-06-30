@@ -159,12 +159,18 @@ const WAVE = Object.freeze({
     COOLDOWN: 110,       // frames before the Hero can cast again
     LIFETIME: 80,        // projectile active frames
     TYPES: [
+        // Hitbox width/height now ENVELOP the massive procedural Holy Light Wave
+        // (SpriteManager.drawLightWave): its crescent blade arcs at radius ~70px
+        // from the projectile centre, so the bright slash spans ~200-215px. Sizes
+        // below were measured off the actual render (bright-blade bbox + small
+        // margin) so collision matches the visual. Speed / vy / dmgMult / knockback
+        // are UNCHANGED — only the hit extents grew.
         // waveType 1 — diagonal: travels forward AND drifts down (a falling slash)
-        { width: 30, height: 30, speed: 7.0, vy: 1.4, dmgMult: 0.6, knockback: 4 },
-        // waveType 2 — vertical: a tall, thin standing wave sweeping forward
-        { width: 18, height: 58, speed: 6.2, vy: 0.0, dmgMult: 0.7, knockback: 5 },
+        { width: 210, height: 210, speed: 7.0, vy: 1.4, dmgMult: 0.6, knockback: 4 },
+        // waveType 2 — vertical: an upright crescent sweeping forward
+        { width: 218, height: 214, speed: 6.2, vy: 0.0, dmgMult: 0.7, knockback: 5 },
         // waveType 3 — X-shape: a big, fast crossing burst (the ranged finisher)
-        { width: 44, height: 44, speed: 8.2, vy: 0.0, dmgMult: 1.0, knockback: 8 },
+        { width: 220, height: 212, speed: 8.2, vy: 0.0, dmgMult: 1.0, knockback: 8 },
     ],
 });
 
@@ -218,10 +224,16 @@ const POGO = Object.freeze({
 // 5. FEAR STUN.
 // ---------------------------------------------------------------------------
 const FEAR = Object.freeze({
-    STUN_FRAMES: 30,     // ~0.5s @60fps stunned on the ground
-    FRICTION: 0.8,       // horizontal velocity bleed while stunned
-    NUDGE: 3,            // small backward stagger on the triggering frame
-    HOP: 2,              // tiny upward stagger so the crumple reads, then gravity drops it
+    // TWO INDEPENDENT clocks. The knockdown STUN is a short, jarring interrupt;
+    // the DEBUFF is the long tail. The stun lives ENTIRELY inside the debuff
+    // window (30 of the 240 frames), so the Hero spends ~0.5s on the floor and
+    // the remaining ~3.5s back on its feet but still "afraid" (+30% dmg, dark aura).
+    STUN_FRAMES: 30,         // 0.5s @60fps: crumpled & helpless on the ground (this ONLY)
+    DEBUFF_FRAMES: 240,      // 4s   @60fps: +30% dmg taken + the Boss's dark-aura trigger
+    DAMAGE_TAKEN_MULT: 1.3,  // +30% incoming damage to the Hero while the DEBUFF is up
+    FRICTION: 0.8,           // horizontal velocity bleed during the knockdown
+    NUDGE: 3,                // small backward stagger on the triggering frame
+    HOP: 2,                  // tiny upward stagger so the crumple reads, then gravity drops it
 });
 
 export class Enemy {
@@ -308,8 +320,12 @@ export class Enemy {
         this._airAttackCooldown = 0;          // gate before a new dive window can arm
         this._pogoConsumed = false;           // one bounce per dive window
 
-        // --- 5. Fear stun ---
-        this.fearTimer = 0;                   // frames of fear-stun remaining
+        // --- 5. Fear: a brief 0.5s KNOCKDOWN STUN nested inside a 4s DEBUFF ---
+        // Two INDEPENDENT clocks. The stun (crumpled & helpless) is short; the
+        // debuff (+30% dmg taken + the Boss's dark-aura trigger) far outlives it,
+        // so the Hero is back up and fighting long before the fear wears off.
+        this.fearStunTimer = 0;               // frames of the 0.5s knockdown stun remaining
+        this.fearDebuffTimer = 0;             // frames of the 4s fear DEBUFF remaining (+30% dmg taken)
 
         // --- Dodge i-frames ---
         this.iFrames = 0;
@@ -398,7 +414,7 @@ export class Enemy {
             this.dashCooldown <= 0 &&
             this.isGrounded &&
             this.knockbackTimer <= 0 &&
-            this.fearTimer <= 0
+            this.fearStunTimer <= 0
         );
     }
 
@@ -455,7 +471,7 @@ export class Enemy {
             this.canMelee &&
             this.isGrounded &&
             this.knockbackTimer <= 0 &&
-            this.fearTimer <= 0 &&
+            this.fearStunTimer <= 0 &&
             this._comboCooldown <= 0
         );
     }
@@ -506,7 +522,7 @@ export class Enemy {
             this.canCastWaves &&
             this.isGrounded &&
             this.knockbackTimer <= 0 &&
-            this.fearTimer <= 0 &&
+            this.fearStunTimer <= 0 &&
             this._castCooldown <= 0 &&
             dist >= WAVE.MIN_RANGE &&
             dist <= WAVE.MAX_RANGE
@@ -592,7 +608,7 @@ export class Enemy {
             this.canJumpPogo &&
             this.isGrounded &&
             this.knockbackTimer <= 0 &&
-            this.fearTimer <= 0 &&
+            this.fearStunTimer <= 0 &&
             this._jumpCooldown <= 0 &&
             this.moveState === MoveState.WALKING
         );
@@ -693,7 +709,14 @@ export class Enemy {
     triggerFear() {
         if (this._fearImmuneTimer > 0 || this.iFrames > 0) return false;
 
-        this.fearTimer = FEAR.STUN_FRAMES;
+        // (1) The brief KNOCKDOWN stun: the Hero crumples and is helpless ONLY for
+        // this short window (~0.5s). It expires in update() and the Hero stands up.
+        this.fearStunTimer = FEAR.STUN_FRAMES;
+        // (2) The much longer FEAR DEBUFF, started on the SAME frame but lasting far
+        // longer (~4s). It OUTLIVES the stun: once the Hero is back on its feet and
+        // fighting, it still takes +30% damage (takeDamage) and the Boss keeps
+        // flaring its dark aura (read externally) until THIS timer runs out.
+        this.fearDebuffTimer = FEAR.DEBUFF_FRAMES;
         this.hitFlash = this.hitFlashDuration;
         this.moveState = MoveState.FEAR;
 
@@ -738,6 +761,7 @@ export class Enemy {
         if (this._airAttackCooldown > 0) this._airAttackCooldown--;
         if (this._parryCooldown > 0) this._parryCooldown--;
         if (this._fearImmuneTimer > 0) this._fearImmuneTimer--;
+        if (this.fearDebuffTimer > 0) this.fearDebuffTimer--; // 4s fear DEBUFF bleeds down here, independent of the stun
         this.attackHitbox.tick(); // advance the shared weapon's active/cooldown timers
 
         // --- Advance free projectiles every frame (independent of any Hero stun) ---
@@ -763,12 +787,17 @@ export class Enemy {
         const edgeGap = dist - this.halfWidth - bossHalfWidth; // negative => overlapping
         const airMaxVx = this.maxSpeed * AIR.MAX_VX_MULT;
 
-        if (this.fearTimer > 0) {
-            // 5. FEAR STUN: crumpled + helpless. Bleed horizontal speed; gravity
-            // drops the Hero to the ground where it lies stunned until it expires.
-            this.fearTimer--;
+        if (this.fearStunTimer > 0) {
+            // 5. FEAR KNOCKDOWN: crumpled + helpless, but only for the brief stun
+            // window (~0.5s). Bleed horizontal speed; gravity drops the Hero to the
+            // floor. The fearDebuffTimer above is UNAFFECTED and keeps running, so
+            // the +30%-damage / dark-aura status persists after the Hero stands up.
+            this.fearStunTimer--;
             this.velocityX *= FEAR.FRICTION;
             this.moveState = MoveState.FEAR;
+            // Recover the instant the stun ends: the FSM switch has no FEAR case,
+            // so without this the Hero would stay frozen in FEAR forever.
+            if (this.fearStunTimer <= 0) this.moveState = MoveState.WALKING;
         } else if (this.knockbackTimer > 0) {
             // Knocked back: ride the bounce velocity (friction) instead of pursuing.
             this.knockbackTimer--;
@@ -1033,6 +1062,22 @@ export class Enemy {
     get isDashing() { return this.moveState === MoveState.DASHING; }
     get isDodging() { return this.iFrames > 0 && this.moveState === MoveState.DASHING; }
 
+    // --- Fear status surface (read by other systems; e.g. the Boss's dark aura) ---
+    // Two independent clocks (see triggerFear): a 0.5s knockdown STUN nested inside
+    // a 4s DEBUFF. Expose intent rather than raw frame counts.
+    get isFearStunned()  { return this.fearStunTimer > 0; }    // crumpled & helpless (~0.5s)
+    get isFearDebuffed() { return this.fearDebuffTimer > 0; }  // +30% dmg taken + Boss dark aura (~4s)
+
+    // Back-compat shims. Earlier call sites (main.js / Boss.js) may still read the
+    // PREVIOUS field names; these alias the new clocks so nothing breaks during the
+    // migration. NOTE: the Boss's dark aura should track the DEBUFF, so point it at
+    // `isFearDebuffed` / `fearDebuffTimer` (the old `fearStatusTimer` already maps
+    // there). Prefer the new names going forward.
+    get fearTimer()        { return this.fearStunTimer; }
+    set fearTimer(v)       { this.fearStunTimer = v; }
+    get fearStatusTimer()  { return this.fearDebuffTimer; }
+    set fearStatusTimer(v) { this.fearDebuffTimer = v; }
+
     /**
      * Take a hit from the Boss. Honors dodge/counter i-frames (ignored entirely).
      * If braced in a PARRY stance, the hit is NULLIFIED and the circular counter
@@ -1052,7 +1097,13 @@ export class Enemy {
             return true;                             // swing consumed; NO HP lost
         }
 
-        this.hp = Math.max(0, this.hp - amount);
+        // FEAR DEBUFF: while the 4s window is live, the Hero takes +30% — and this
+        // outlasts the 0.5s knockdown, so most amplified hits land while the Hero is
+        // back up and fighting. (The Fear Strike that APPLIES the debuff isn't
+        // amplified itself — main.js calls triggerFear() AFTER this takeDamage(), so
+        // on the triggering frame the debuff isn't live yet; only later hits scale.)
+        const dmg = this.fearDebuffTimer > 0 ? amount * FEAR.DAMAGE_TAKEN_MULT : amount;
+        this.hp = Math.max(0, this.hp - dmg);
         this.hitFlash = this.hitFlashDuration;
 
         // A hit interrupts ANY action in progress.
@@ -1087,7 +1138,7 @@ export class Enemy {
 
     _animState() {
         const ms = this.moveState;
-        if (this.fearTimer > 0) return { name: this._clip('hurt', 'fall', 'roll'), hold: 6 };
+        if (this.fearStunTimer > 0) return { name: this._clip('hurt', 'fall', 'roll'), hold: 6 };
         if (ms === MoveState.PARRY_COUNTER) return { name: this._clip('parry_counter', 'attack'), hold: 2 };
         if (ms === MoveState.PARRY_STANCE)  return { name: this._clip('parry', 'guard', 'idle'), hold: 8 };
         if (ms === MoveState.CASTING)       return { name: this._clip('cast', 'attack'), hold: 4 };
@@ -1117,12 +1168,12 @@ export class Enemy {
         const feetY = this.y + this.halfHeight; // the sprite stands here
         const flip = this.facing === -1;        // art is drawn facing right
         const inCounter = this.moveState === MoveState.PARRY_COUNTER;
-        const dodging = this.iFrames > 0 && !inCounter && this.fearTimer <= 0;
+        const dodging = this.iFrames > 0 && !inCounter && this.fearStunTimer <= 0;
 
         // Tint: white hit-flash; dazed grey while feared; white/red dash-windup flicker.
         let tint = null;
         if (this.hitFlash > 0) tint = '#ffffff';
-        else if (this.fearTimer > 0) tint = '#5a5f78';
+        else if (this.fearStunTimer > 0) tint = '#5a5f78';
         else if (this.moveState === MoveState.DASH_WINDUP) {
             tint = (Math.floor(performance.now() / 60) % 2) ? '#ffffff' : '#e23b3b';
         }
@@ -1147,7 +1198,7 @@ export class Enemy {
         if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
         if (inCounter) this.drawCounterBurst(ctx);
         if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
-        if (this.fearTimer > 0) this.drawFearStun(ctx);
+        if (this.fearStunTimer > 0) this.drawFearStun(ctx);
 
         this.drawHealthBar(ctx);
     }
@@ -1272,37 +1323,18 @@ export class Enemy {
         ctx.restore();
     }
 
-    // 2. Light-wave projectiles. Glyph differs per waveType (1 diagonal, 2
-    //    vertical, 3 X-shape) so the three stages read distinctly even before
-    //    the SpriteManager step adds dedicated wave art.
+    // 2. Light-wave projectiles — rendered with the procedural Holy Light Wave
+    //    (SpriteManager.drawLightWave): a massive golden crescent slash per
+    //    waveType (1 diagonal, 2 vertical, 3 X-cross). Travel direction is read
+    //    from velocityX's sign (waves carry no explicit facing); alpha fades the
+    //    slash over its lifetime. Rendering ONLY — speeds / damage / hitbox sizes
+    //    are untouched.
     drawWaveProjectiles(ctx) {
         for (const p of this.projectiles) {
             if (!p.isActive || p.kind !== 'wave') continue;
-            const prog = p.lifeProgress;                 // 0..1
-            const alpha = 0.85 * (1 - prog * 0.6);
-            const w = p.halfWidth;
-            const h = p.halfHeight;
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = '#bfe6ff';
-            ctx.shadowColor = '#7fc2ff';
-            ctx.shadowBlur = 14;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            if (p.waveType === 1) {                      // diagonal slashes
-                ctx.moveTo(-w, -h); ctx.lineTo(w, h);
-                ctx.moveTo(-w, -h * 0.3); ctx.lineTo(w * 0.6, h);
-            } else if (p.waveType === 2) {               // vertical bars
-                ctx.moveTo(0, -h); ctx.lineTo(0, h);
-                ctx.moveTo(-w * 0.55, -h * 0.7); ctx.lineTo(-w * 0.55, h * 0.7);
-                ctx.moveTo(w * 0.55, -h * 0.7); ctx.lineTo(w * 0.55, h * 0.7);
-            } else {                                      // X-shape
-                ctx.moveTo(-w, -h); ctx.lineTo(w, h);
-                ctx.moveTo(w, -h); ctx.lineTo(-w, h);
-            }
-            ctx.stroke();
-            ctx.restore();
+            const alpha = 0.85 * (1 - p.lifeProgress * 0.6); // fade over lifetime (unchanged feel)
+            const facing = Math.sign(p.velocityX) || 1;      // direction the wave travels
+            SpriteManager.drawLightWave(ctx, p.x, p.y, p.waveType, facing, { alpha });
         }
     }
 

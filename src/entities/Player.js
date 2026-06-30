@@ -45,6 +45,27 @@ const EXPL   = Object.freeze({ size: 210, frames: 26, ahead: 24, damage: 160, kn
 const DIVE   = Object.freeze({ freeze: 12, vx: 11, vy: 21 });
 const SHOCK  = Object.freeze({ width: 210, height: 92, frames: 22, damage: 90, knockback: 22 });
 
+// ---------------------------------------------------------------------------
+// CHARGED ATTACKS (new). Hold the attack button (J / Left Click) to build a
+// charge; release to fire. All times in frames @ ~60fps (matching everything
+// above).
+//   CHARGE.frames : frames of HOLD needed to be "fully charged" (1.0s == 60).
+//                   Crossing this threshold mid-air (while still holding) also
+//                   arms `isChargeReady` for the STEP-2 "Charge Ready" aura.
+//   LASER         : the GROUND fully-charged release — a massive, stationary
+//                   horizontal beam fired forward. length/thickness are the full
+//                   AABB extents; the box is centred half-a-length ahead so its
+//                   near edge starts on the Boss. `lock` roots the Boss while the
+//                   beam is live.
+// The AIR fully-charged release reuses the existing Air Dive but tags its
+// landing shockwave as the Fear Strike (see _spawnShockwave / _startAirDive).
+// ---------------------------------------------------------------------------
+const CHARGE = Object.freeze({ frames: 60 }); // 1.0s @ ~60fps (was 120 / 2.0s)
+const LASER  = Object.freeze({
+    length: 520, thickness: 70, ahead: 0,
+    frames: 30, lock: 30, damage: 220, knockback: 30,
+});
+
 export class Player {
     constructor(x, y) {
         this.x = x;
@@ -103,8 +124,29 @@ export class Player {
             damage: SWORD.DAMAGE,
             knockback: SWORD.KNOCKBACK,
         });
-        this._attackQueued = false; // edge-detected attack press, consumed in update()
+        // Charged-attack input. We track the attack button being HELD (not just
+        // the press edge) so update() can grow a charge timer and act on the
+        // RELEASE edge. _wasAttackHeld is last frame's value, for edge detection.
+        this._attackHeld = false;
+        this._wasAttackHeld = false;
         this._installAttackInput();
+
+        // --- CHARGED ATTACKS runtime state (hold to charge, release to fire) ---
+        this.chargeTimer = 0;        // frames the attack button has been held (0..CHARGE.frames)
+        this._diveCharged = false;   // was the IN-PROGRESS air dive fully charged? gates the Fear shockwave
+        this._laserLockTimer = 0;    // > 0 while the Boss is committed firing the ground Laser Beam
+
+        // STEP 1 / REQ 2 — "Charge Ready" trigger.
+        // True for exactly the frames the Boss is AIRBORNE, still HOLDING the
+        // attack button, AND has held long enough to be fully charged
+        // (chargeTimer >= CHARGE.frames == 1s). This is the single state the
+        // renderer reads in STEP 2 to flare the massive dark-red aura around the
+        // Boss. It is re-derived every frame in update(): cleared at the top, then
+        // re-armed inside the airborne-hold branch the instant the 1s threshold is
+        // crossed. It force-clears the moment the button is released (the dive
+        // fires), the charge is dropped, or the Boss is hit — so it can never get
+        // stuck on. Purely a status flag; it never drives physics/combat itself.
+        this.isChargeReady = false;
 
         // --- Spawned hitboxes that live on their own (combo overhaul) ------------
         // Dark Flame (moving), Finisher explosion, and air-dive shockwave all get
@@ -162,26 +204,28 @@ export class Player {
     }
 
     // Self-contained attack input so NO changes to Input.js are required:
-    // 'J' on the keyboard, or a left-click on the game canvas, queues one press.
-    // (If you'd rather route this through your Input class for consistency, add an
-    //  `consumeAttack()` there and swap _consumeAttack() below to call it.)
+    // 'J' on the keyboard, or a left-click on the game canvas, counts as the
+    // attack button. We track it being HELD (down → up) so the charge timer can
+    // grow while held and update() can detect the RELEASE edge. Auto-repeat is
+    // irrelevant: _attackHeld latches on the first down and clears only on up.
+    // (If you'd rather route this through your Input class for consistency, set
+    //  _attackHeld from an Input "attack held" query and drop these listeners.)
     _installAttackInput() {
         if (typeof window === 'undefined') return;
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'KeyJ') this._attackQueued = true;
-        });
+        const press = () => { this._attackHeld = true; };
+        const release = () => { this._attackHeld = false; };
+
+        window.addEventListener('keydown', (e) => { if (e.code === 'KeyJ') press(); });
+        window.addEventListener('keyup',   (e) => { if (e.code === 'KeyJ') release(); });
         window.addEventListener('mousedown', (e) => {
             // Left button, and only when the click lands on the canvas (so clicking
-            // the DOM Nemesis overlay doesn't trigger a swing).
-            if (e.button === 0 && e.target && e.target.tagName === 'CANVAS') {
-                this._attackQueued = true;
-            }
+            // the DOM Nemesis overlay doesn't start a charge).
+            if (e.button === 0 && e.target && e.target.tagName === 'CANVAS') press();
         });
-    }
-
-    _consumeAttack() {
-        if (this._attackQueued) { this._attackQueued = false; return true; }
-        return false;
+        // Release on ANY left mouse-up (the cursor may have left the canvas first).
+        window.addEventListener('mouseup', (e) => { if (e.button === 0) release(); });
+        // Safety: never get stuck mid-charge if the tab/window loses focus.
+        window.addEventListener('blur', release);
     }
 
     // The direction an attack should commit toward: the Hero (aimDir) so swings,
@@ -226,6 +270,15 @@ export class Player {
         this.fearAuraTimer = f; // exact mirror; the fade-out tail is derived in draw()
     }
 
+    // --- CHARGED ATTACKS: read-only views for the renderer (STEP 2) ----------
+    // 0..1 how far the current charge has progressed; true once fully charged.
+    // Purely informational — they never touch physics/combat. (The matching
+    // "Charge Ready" flag is the `isChargeReady` field set in update(); it is the
+    // one to read for the STEP-2 air "Charge Ready" aura.)
+    get chargeRatio() { return Math.min(1, this.chargeTimer / CHARGE.frames); }
+    get isFullyCharged() { return this.chargeTimer >= CHARGE.frames; }
+    get isCharging() { return this._attackHeld && this.chargeTimer > 0; }
+
     update(input) {
         // --- Tick combat + ability timers (i-frames, hit flash, dash CD, weapon CD/active) ---
         if (this.iFrames > 0) this.iFrames--;
@@ -245,14 +298,40 @@ export class Player {
             this.facing = dir;
         }
 
-        // --- Edge-detected attack press (consumed once) ---
-        const pressed = this._consumeAttack();
+        // --- Attack button: HELD state + per-frame press/release edges ---------
+        // Computed once here, before any early return, so the previous-frame
+        // value stays correct no matter which branch below exits the function.
+        const held = this._attackHeld;
+        const justPressed  = held && !this._wasAttackHeld;   // rising edge (new press)
+        const justReleased = !held && this._wasAttackHeld;   // falling edge (let go)
+        this._wasAttackHeld = held;
+
+        // STEP 1 / REQ 2 — re-derive "Charge Ready" from scratch each frame.
+        // Clear it here first; the airborne-hold branch below is the ONLY place
+        // that re-arms it (once the 1s threshold is met while held in the air).
+        // Clearing first guarantees every early-return path — laser lock, an
+        // in-progress dive, mid-combo, or the grounded charge — correctly reports
+        // "not ready", and that the flag drops the instant the button is released.
+        this.isChargeReady = false;
+
+        // === Laser Beam commit: rooted while the ground beam is live ============
+        // Firing the Laser locks the Boss in place for its duration so it can't
+        // walk out of its own beam. Highest priority — it owns these frames.
+        if (this._laserLockTimer > 0) {
+            this._laserLockTimer--;
+            this.velocityX = 0;
+            this.velocityY = 0; // grounded; main.js keeps the feet pinned
+            this.attackHitbox.reposition(this.x, this.y, this.facing);
+            return;
+        }
 
         // === REQUIREMENT 2: Diagonal Air Dive (in-progress handling) ============
         if (this.airDiveState !== 'none') {
             if (this.airDiveState === 'dive' && this.isGrounded) {
-                // Landed: drop the Fear Strike shockwave and return to normal control.
-                this._spawnFearShockwave();
+                // Landed: drop the shockwave. It is the FEAR STRIKE *only* if this
+                // dive was fully charged (REQUIREMENT 5); a normal dive's wave just
+                // deals damage + knockback.
+                this._spawnShockwave(this._diveCharged);
                 this.airDiveState = 'none';
                 this.velocityX = 0;
                 if (typeof input.consumeJump === 'function') input.consumeJump(); // no surprise hop
@@ -275,31 +354,74 @@ export class Player {
             }
         }
 
-        // --- Start an air dive: attack pressed while airborne ---
-        if (pressed && !this.isGrounded && this.airDiveState === 'none' &&
-            this.comboStep === 0 && this.dashTimer <= 0) {
-            this.airDiveState = 'freeze';
-            this._airDiveFreezeTimer = DIVE.freeze;
-            this.attackDir = this._aimOrFacing();
-            this.facing = this.attackDir;
-            this.velocityX = 0;
-            this.velocityY = 0;
-            return;
-        }
-
-        // === REQUIREMENT 1: 4-hit ground combo ==================================
-        if (this.comboStep === 0) {
-            if (pressed && this.isGrounded && this.dashTimer <= 0) {
-                this._startComboHit(1);
-                this._updateCombo(); // integrate the first frame immediately
-                return;
-            }
-            // else: not attacking on the ground → fall through to normal movement
-        } else {
-            if (pressed) this.comboBuffered = true; // buffer a chain input
+        // === Mid-combo: a press chains the next hit; charging is suspended ======
+        // (Tap to start/continue the combo; HOLD is reserved for charging, so a
+        //  press here only buffers a chain — releases are ignored by the FSM.)
+        if (this.comboStep !== 0) {
+            if (justPressed) this.comboBuffered = true;
             this._updateCombo();
             return; // movement is fully driven by the combo while it runs
         }
+
+        // ----- From here comboStep === 0 (idle, free to charge) ----------------
+
+        // === REQUIREMENT 4: Airborne — HOLD to hover + charge, RELEASE to dive ==
+        if (!this.isGrounded && this.dashTimer <= 0) {
+            if (held) {
+                // HOVER: gravity off, vertical velocity pinned to 0 while charging.
+                this.chargeTimer = Math.min(this.chargeTimer + 1, CHARGE.frames);
+                // STEP 1 / REQ 2 — the instant we cross the 1s threshold while
+                // still holding in the air, arm "Charge Ready" so STEP 2 can flare
+                // the massive dark-red aura. Re-armed every held frame after that.
+                this.isChargeReady = this.chargeTimer >= CHARGE.frames;
+                this.velocityY = 0;
+                // Still allow horizontal repositioning so the hover feels controllable.
+                this.velocityX += dir * this.acceleration;
+                this.velocityX *= this.friction;
+                if (Math.abs(this.velocityX) > this.maxSpeed) {
+                    this.velocityX = Math.sign(this.velocityX) * this.maxSpeed;
+                }
+                if (Math.abs(this.velocityX) < 0.05) this.velocityX = 0;
+                this.x += this.velocityX;
+                this.attackHitbox.reposition(this.x, this.y, this.facing);
+                return;
+            }
+            if (justReleased) {
+                // Release in the air → Air Dive. Fully charged ⇒ Fear-Strike dive.
+                this._startAirDive(this.chargeTimer >= CHARGE.frames);
+                this.chargeTimer = 0;
+                return;
+            }
+            // not held, no release this frame → fall through to normal air movement
+        }
+
+        // === REQUIREMENT 1 & 3: Grounded — HOLD to charge, RELEASE to fire ======
+        if (this.isGrounded && this.dashTimer <= 0) {
+            if (held) {
+                // Charge stance: rooted (bleed momentum) while the meter fills.
+                this.chargeTimer = Math.min(this.chargeTimer + 1, CHARGE.frames);
+                this.velocityY = 0;
+                this.velocityX *= this.friction;
+                if (Math.abs(this.velocityX) < 0.05) this.velocityX = 0;
+                this.x += this.velocityX;
+                this.attackHitbox.reposition(this.x, this.y, this.facing);
+                return;
+            }
+            if (justReleased) {
+                if (this.chargeTimer >= CHARGE.frames) {
+                    this._fireLaser();      // fully charged → massive Laser Beam
+                } else {
+                    this._startComboHit(1); // short tap → normal 4-hit combo
+                    this._updateCombo();    // integrate the first frame immediately
+                }
+                this.chargeTimer = 0;
+                return;
+            }
+            // not held, no release this frame → fall through to normal movement
+        }
+
+        // Not charging or attacking this frame → discard any stale charge.
+        if (!held) this.chargeTimer = 0;
 
         // === Normal movement (unchanged) =======================================
 
@@ -477,20 +599,64 @@ export class Player {
         this.projectiles.push(blast);
     }
 
-    // REQUIREMENT 2 — spawn the air-dive landing shockwave, tagged isFearStrike.
-    _spawnFearShockwave() {
+    // REQUIREMENT 5 — air-dive landing shockwave. It is the FEAR STRIKE *only*
+    // when `isFear` is true (the fully-charged air dive). A normal (uncharged)
+    // dive passes false, so its wave deals damage + knockback but no Fear.
+    _spawnShockwave(isFear = false) {
         const wave = new Hitbox({
             reach: 0, width: SHOCK.width, height: SHOCK.height,
             duration: SHOCK.frames, cooldown: 0,
             damage: SHOCK.damage, knockback: SHOCK.knockback,
             kind: 'shockwave',
-            isFearStrike: true, // <-- main.js routes this to enemy.triggerFear()
+            isFearStrike: isFear === true, // <-- main.js routes ONLY this to enemy.triggerFear()
         });
         wave.x = this.x;
         wave.y = this.y + this.halfHeight - SHOCK.height / 2; // sit on the ground
         wave.facing = this.attackDir;
         wave.trigger(true);
         this.projectiles.push(wave);
+    }
+
+    // REQUIREMENT 4/5 — begin the diagonal Air Dive. `charged` is remembered on
+    // _diveCharged so the landing (in update()) knows whether to spawn the
+    // Fear-Strike shockwave. Reuses the existing freeze → dive wind-up.
+    _startAirDive(charged = false) {
+        this.airDiveState = 'freeze';
+        this._airDiveFreezeTimer = DIVE.freeze;
+        this._diveCharged = charged === true;
+        this.attackDir = this._aimOrFacing();
+        this.facing = this.attackDir;
+        this.velocityX = 0;
+        this.velocityY = 0;
+    }
+
+    // REQUIREMENT 3 — fire the GROUND fully-charged Laser Beam: a massive,
+    // stationary horizontal hitbox extending forward from the Boss. It lives in
+    // `projectiles` (so main.js's getActiveHitboxes() picks it up for collision)
+    // and times out after LASER.frames. The Boss is rooted for LASER.lock frames
+    // so it stays at the beam's mouth. Visual is the 'laser' projectile kind.
+    _fireLaser() {
+        this.attackDir = this._aimOrFacing();
+        this.facing = this.attackDir;
+
+        const beam = new Hitbox({
+            reach: 0, width: LASER.length, height: LASER.thickness,
+            duration: LASER.frames, cooldown: 0,
+            damage: LASER.damage, knockback: LASER.knockback,
+            kind: 'laser',
+        });
+        // Centre half-a-length ahead so the near edge starts on the Boss and the
+        // beam shoots out in the facing direction.
+        beam.x = this.x + this.attackDir * (LASER.length / 2 + LASER.ahead);
+        beam.y = this.y; // chest / body-centre height
+        beam.facing = this.attackDir;
+        beam.trigger(true);
+        this.projectiles.push(beam);
+
+        // Commit: root the Boss while the beam is live.
+        this._laserLockTimer = LASER.lock;
+        this.velocityX = 0;
+        this.velocityY = 0;
     }
 
     // All currently-live Boss hitboxes for the collision resolver in main.js:
@@ -520,6 +686,10 @@ export class Player {
         // A real hit interrupts any combo or air dive in progress.
         this._resetCombo();
         this.airDiveState = 'none';
+        // ...and any in-progress charge / live Laser commit (incl. Charge Ready).
+        this.chargeTimer = 0;
+        this._laserLockTimer = 0;
+        this.isChargeReady = false;
 
         this.hp = Math.max(0, this.hp - amount);
         this.iFrames = this.iFrameDuration;
@@ -537,6 +707,15 @@ export class Player {
     // Pick the animation clip from the Boss's CURRENT state. Rendering-only:
     // it reads physics/combat fields but never writes them.
     _animState() {
+        // Charged-attack poses (STEP 2). These outrank the combo / dive clips so
+        // the Boss visibly winds up the wand, fires the beam, hovers, and crashes.
+        if (this._laserLockTimer > 0) return { name: 'fireLaser', hold: 3 };
+        if (this.airDiveState !== 'none' && this._diveCharged) return { name: 'chargedDive', hold: 4 };
+        if (this.isCharging) {
+            return this.isGrounded ? { name: 'groundCharge', hold: 4 }
+                                   : { name: 'airCharge', hold: 4 };
+        }
+
         // Air dive overrides everything (REQUIREMENT 2).
         if (this.airDiveState !== 'none') return { name: 'airDive', hold: 4 };
 
@@ -576,6 +755,12 @@ export class Player {
         const diving = this.airDiveState !== 'none';
         // The finisher dash reads as a "drill" too, so treat it like a dash for FX.
         const dashing = this.dashTimer > 0 || (this.comboStep === 4 && this._finisherDashTimer > 0);
+
+        // CHARGED-ATTACK render states (STEP 2 wiring). Ground charge => wand glow;
+        // air charge / fully-charged dive => roaring black-red fire aura.
+        const groundCharging = this.isCharging && this.isGrounded;
+        const chargedAir = (this.isCharging && !this.isGrounded) ||
+                           (this.airDiveState !== 'none' && this._diveCharged);
 
         // FACING:
         //   - dashing (Shift dash or finisher dash): point the way we travel.
@@ -646,11 +831,45 @@ export class Player {
             });
         }
 
+        // CHARGED AIR ATTACK: roaring black/red fire wraps the Boss while it
+        // hovers-and-charges aloft and through the fully-charged Fear dive. Drawn
+        // BEHIND the sprite (like drawAura) so the figure stands inside the fire.
+        if (chargedAir) {
+            SpriteManager.drawChargedAirAura(ctx, this.x, bodyCY, {
+                radius: hpx * 0.72,
+                intensity: this.hitFlash > 0 ? 1.3 : 1,
+            });
+        }
+
+        // STEP 3 — "CHARGE READY" aura. Once the 1-second charge completes while
+        // the Boss is airborne and still holding (isChargeReady), flare the massive
+        // violently-pulsing dark-red burst CONTINUOUSLY until release. Drawn BEHIND
+        // the sprite (like the sibling auras) so the figure stands inside the energy.
+        if (this.isCharging && this.isChargeReady) {
+            SpriteManager.drawChargeReadyAura(ctx, this.x, bodyCY, performance.now(), {
+                radius: hpx * 0.8,
+                intensity: this.hitFlash > 0 ? 1.4 : 1,
+            });
+        }
+
         // The Boss sprite (renders 3x the Hero via BOSS_PIXEL).
         const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
             pixelSize: BOSS_PIXEL, flip, tint,
         });
         this._spriteTopY = res ? res.originY : null;
+
+        // CHARGED GROUND ATTACK: the wand orb brightens as the meter fills, then
+        // flares blinding red the instant it's fully charged (the laser is ready).
+        // Drawn OVER the sprite, anchored at the wand-tip ahead of the Boss.
+        if (groundCharging) {
+            SpriteManager.drawWandGlow(
+                ctx,
+                this.x + fxDir * hpx * 0.22,
+                bodyCY - hpx * 0.26,
+                this.chargeRatio,
+                { radius: hpx * 0.18 },
+            );
+        }
 
         // --- Finisher explosion punches OVER the Boss for maximum impact ---
         this._drawProjectiles(ctx, 'over');
@@ -677,6 +896,12 @@ export class Player {
             } else if (layer === 'over' && p.kind === 'explosion') {
                 SpriteManager.drawExplosion(ctx, p.x, p.y, {
                     progress: prog, radius: p.halfWidth,
+                });
+            } else if (layer === 'over' && p.kind === 'laser') {
+                // The Laser box is centred half-a-length ahead, so back off
+                // halfWidth along facing to seat the beam muzzle on the Boss.
+                SpriteManager.drawLaserBeam(ctx, p.x - p.facing * p.halfWidth, p.y, p.facing, {
+                    length: p.width, thickness: p.height, progress: prog,
                 });
             }
         }

@@ -321,13 +321,15 @@ function handleCombat() {
 
     // (a) ALL of the Boss's active hitboxes vs the Hero's body. This spans the
     //     4-hit combo's melee swing AND every spawned hitbox: the Dark Flame
-    //     projectile (Hit 3), the Finisher explosion (Hit 4), and the air-dive
-    //     shockwave. Each swing / projectile damages the Hero at most once
-    //     (markHit).
+    //     projectile (Hit 3), the Finisher explosion (Hit 4), the air-dive
+    //     shockwave, and the fully-charged ground LASER BEAM. Each swing /
+    //     projectile damages the Hero at most once (markHit).
     //
-    //     The Fear Strike is the air-dive SHOCKWAVE (it lives in
-    //     player.projectiles, NOT player.attackHitbox), so isFearStrike is tested
-    //     on whichever hitbox actually connects via getActiveHitboxes().
+    //     FEAR ROUTING: the Fear Strike is now SPECIFICALLY the FULLY-CHARGED
+    //     air-dive shockwave. A normal (uncharged) dive's shockwave has
+    //     isFearStrike === false, so it deals damage WITHOUT fear. Because we test
+    //     isFearStrike on whichever hitbox actually connects (below), fear fires
+    //     ONLY on the charged version — no extra branching needed here.
     for (const hb of player.getActiveHitboxes()) {
         if (!hb.overlaps(enemy) || hb.hasHit(enemy)) continue;
 
@@ -341,8 +343,11 @@ function handleCombat() {
             enemyTookWeaponHit = true;
 
             // A Fear Strike doesn't JUST deal damage; it ALSO kicks off the
-            // Hero's fall-down stun. (triggerFear nullifies itself if the Hero
-            // just parried / is i-framed, so a parried Fear Strike won't stun.)
+            // Hero's fall-down stun. ONLY the fully-charged air-dive shockwave
+            // carries isFearStrike === true (the normal dive does not), so this
+            // is the single gate that distinguishes the charged version.
+            // (triggerFear nullifies itself if the Hero just parried / is
+            // i-framed, so a parried Fear Strike won't stun.)
             if (hb.isFearStrike === true && typeof enemy.triggerFear === 'function') {
                 enemy.triggerFear();
             }

@@ -87,6 +87,25 @@ export const BOSS_SPRITES = {
     ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK.......K', '...PkKDKKDDBBBDK......Xv', '..PkKkKKKDKDDDKK....XXeK', '...PkDKKDDDDDDDKK..XXvK.', '..PkKkKPKDPppPpGgXXveVK.', '.PkKDKkDKDPpKpOgSXv.VK..', '.PKkKkKKDPDpKPDgWS.VK...', 'PKkDkKDKDPPpKPPDGWSK....', 'KkKkKkKKDPDpKpKgDgWS....', 'kKDKkDKDDPppKpPDDgOWS...', 'K.KkKkKDDPDpKpDDDK..WS..', 'k.kKDKDDPPppKpPPDDK..WO.', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', '..DK.DKKKK..KKK...K.....', '.kK..kK.Kk....K.........', '.......K.......K........', '.......K.......K........'],
     ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK........', '....PkKkKDDBmBmK........', '...PkKDKKDDBBBDK......Xx', '..PkKkKKKDKDDDKK....XXev', '...PkDKKDDDDDDDKK..X.vVK', '..PkKkKPKDPppPpGgXXxeVK.', '.PkKDKkDKDPpKpPOS.xvVK..', '.PKkKkKKDPDpKPDgWSvVK...', 'PKkDkKDKDPPpKPPDGWSK....', 'PkKkKkKKDPDpKpKgDgWS....', 'kKDKkDKDDPppKpPDDO.WS...', 'K.KkKkKDDPDpKpDDDK..WS..', 'k.kKDKDDPPppKpPPDDK..WO.', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k.D.kDKKKK..KKK...K.....', '.k...k..Kk....K.........', '.D...K.K.K.....K........', '.......K.......K........'],
   ],
+  // --- STEP 2: charged-attack poses (2 frames each, 24x24, PALETTE keys). Wand
+  // uses gold a/g/G shaft + cyan/white C/L/W orb, kept visually distinct from the
+  // violet void-sword. Selected by Player._animState() during the charge states.
+  groundCharge: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBEK..X.....', '....PkKkKDDBmBmK.lCC....', '...PkKDKKDDBBBDK..LLC...', '..PkKkKKKDKDDDKK..al....', '...PkDKKDDDDDDDK.g......', '...PKkKPKDPppPOP.a......', '..PKDKkDKDPpKpPgG.......', '..PkKkKKDPDpKPDDa.......', '.PkDkKDKDPPpKPPg........', '.PKkKkKKDPDpKpDP........', '.PDKkDKDDPppKpPDDK......', 'P.KkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDPKKKKPDPDDD.....', 'k.....DK.KKDKDK...K.....', 'K....Kk.......kK........', 'k....kK.......Kk........', '....KK.........KK.......'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK....x....', '....PkKkKKDDBBB...X.C...', '....PKkDKDDBEBEK.XCCX...', '....PkKkKDDBmBmK.CWWCx..', '...PkKDKKDDBBBDK.CWWCC..', '..PkKkKKKDKDDDKK.xCCx...', '...PkDKKDDDDDDDK.g.X....', '...PKkKPKDPppPOP.a......', '..PKDKkDKDPpKpPgG.......', '..PkKkKKDPDpKPDDa.......', '.PkDkKDKDPPpKPPg........', '.PKkKkKKDPDpKpDP........', '.PDKkDKDDPppKpPDDK......', 'P.KkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDPKKKKPDPDDD.....', 'k.....DK.KKDKDK...K.....', 'K....Kk.......kK........', 'k....kK.......Kk........', '....KK.........KK.......'],
+  ],
+  fireLaser: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBE.........', '....PkKkKDDBmBm.........', '...PkKDKKDDBBBD.........', '..PkKkKKKDKDDDK.......x.', '...PkDKKDDDDDDD.......Xx', '...PKkKPKDPppPO.KKK.gXCL', '..PKDKkDKDPpKpPKuupkaCWW', '..PkKkKKDPDpKPDKpPDK.XCL', '.PkDkKDKDPPpKPP.......Xx', '.PKkKkKKDPDpKpD.......x.', '.PDKkDKDDPppKpPDDK......', 'P.KkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k..KkDKKKK..KKK...K.....', 'K...K...KK.....K........', 'k...D...kK.....K........', '........KK.....KK.......'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....PkKkKKDDBBB.........', '....PKkDKDDBEBE.........', '....PkKkKDDBmBm.........', '...PkKDKKDDBBBD.......x.', '..PkKkKKKDKDDDK.......xx', '...PkDKKDDDDDDD......CXC', '...PKkKPKDPppPO.KKK.gCWW', '..PKDKkDKDPpKpPKuupkCWWW', '..PkKkKKDPDpKPDKpPDK.CWW', '.PkDkKDKDPPpKPP......CXC', '.PKkKkKKDPDpKpD.......xx', '.PDKkDKDDPppKpPDDK....x.', 'P.KkKkKDDPDpKpDDDK......', 'P.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', 'k..KkDKKKK..KKK...K.....', 'K...K...KK.....K........', 'k...D...kK.....K........', '........KK.....KK.......'],
+  ],
+  airCharge: [
+    ['........kDPKKPDk........', '......PDk.KPDK.kDP......', '...x.PkKP.KKKKKP...x....', '..DPPkKkKKDDBBB...PD....', 'x.PpPKkDKDDBEBEK..Dpx...', '.PD.PkKkKDDBmBmK.Pp....K', 'XDPPkKDKKDDBBBDKDPX...Xv', '.kPkKkKKKDKDDDKKkP..XXeK', 'DP.PkDKKDDDDDDDKPD.XXvK.', 'kPPkKkKPKDPppPpPPkXveVK.', '.PkKDKkDKDPpKpOgXXv.VK..', '.PKkKkKKDPDpKPDgKv.VK...', 'PKkDkKDKDPPpKPPDG.VK....', 'KkKkKkKKDPDpKpKgDgK.....', 'kKDKkDKDDPppKpPDDgO.....', 'K.KkKkKDDPDpKpDDDK......', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKDDDDPppDPDPDDD.....', '..DK.XKKKK..KKKX..K.....', '.kK..xKkKk...kKx........', '......CK..ll.KC.........', '.......X..vv.X..........'],
+    ['........PDkKKkPD........', '......kDP.KPDK..P...Dx..', '.....PkKD.KKKKK.....P...', '....PkKkKKDDBBB....PDx..', '..xDPKkDKDDBEBEK..Dp....', '..PpPkKkKDDBmBmK..PpX..K', '.XPDkKDKKDDBBBDK.DP...Xv', '.kPkKkKKKDKDDDKK.kP.XXeK', '.DPPkDKKDDDDDDDKPD.XXvK.', 'kPPkKkKPKDPppPpPPkXveVK.', '.PkKDKkDKDPpKpOgXXv.VK..', '.PKkKkKKDPDpKPDgKv.VK...', 'PKkDkKDKDPPpKPPDG.VK....', 'KkKkKkKKDPDpKpKgDgK.....', 'kKDKkDKDDPppKpPDDgO.....', 'K.KkKkKDDPDpKpDDDK......', 'k.kKDKDDPPppKpPPDDK.....', 'K.KkKKDDPPDpKpDPDDK.....', 'D.kDKKDPPKKKKPPKKKK.....', 'K.KkKXDDDPppDPDXDDD.....', '..DK.DxKKK..KKx...K.....', '.kK..kCkKk...kC.........', '.......X..ll.X..........', '..........vv............'],
+  ],
+  chargedDive: [
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '...XwkKkKKDDBBB.........', '..xWPKkDKDDBEBEK........', '..XwPkKkKDDBmBmK.......K', '.xSPkKDKKDDBBBDK......Xv', '.wPkKkKKKDKDDDKK....XXeK', 'xW.PkDKKDDDDDDDKK..XXvK.', 'wXPkKkKPKDPppPpGgXXveVK.', 'xPkKDKkDKDPpKpOgSXv.VK..', '.PKkKkKKDPDpKPDgWS.VK...', 'PKkDkKDKDPPpKPPXGWSK....', 'KkKkKkKKDPDpKpKgXgWS....', 'kKDKkDKDDPppKpPDDxOWS...', 'K.KkKkKDDPDpKpDDDKSxWS..', 'k.kKDKDDPPppKpPPDDVWXWO.', 'K.KkKKDDPPDpKpDPDDvSx...', 'D.kDKKDPPKKKKPPKKKKVWX..', 'K.KkKDDDDPppDPDPDDDvSx..', '..DK.DKKKK..KKK...K.VWX.', '......Kk.....kK......Cx.', '......................CC', '......................LW'],
+    ['...........KK...........', '..........KPDK..........', '.....PkKD.KKKKK.........', '....xSKkKKDDBBB.........', '....XwkDKDDBEBEK........', '...xWkKkKDDBmBmK.......K', '..XwkKDKKDDBBBDK......Xv', '.xSkKkKKKDKDDDKK....XXeK', '..wPkDKKDDDDDDDKK..XXvK.', 'xWPkKkKPKDPppPpGgXXveVK.', 'wXkKDKkDKDPpKpOgSXv.VK..', 'xPKkKkKKDPDpKPDgWS.VK...', 'PKkDkKDKDPPpKPPXGWSK....', 'KkKkKkKKDPDpKpKgXgWS....', 'kKDKkDKDDPppKpPDDxXWS...', 'K.KkKkKDDPDpKpDDDKWXWS..', 'k.kKDKDDPPppKpPPDDVWxWO.', 'K.KkKKDDPPDpKpDPDDvWX...', 'D.kDKKDPPKKKKPPKKKKVSx..', 'K.KkKDDDDPppDPDPDDDvWX..', '..DK.DKKKK..KKK...K.VWx.', '......Kk.....kK......CX.', '......................CC', '.......................L'],
+  ],
 };
 
 export const HERO_SPRITES = {
@@ -1263,6 +1282,577 @@ export class SpriteManager {
             ctx.fillStyle = i % 3 === 0 ? 'rgba(255, 140, 60, 1)' : 'rgba(255, 50, 30, 1)';
             ctx.beginPath();
             ctx.arc(ex, ey, 1.4 + (1 - phase) * 1.7, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // =======================================================================
+    // STEP 3 — Charged-attack VFX (procedural, Canvas-API; visual-only).
+    // Style guides: the laser reference (blinding white core + red/orange bloom)
+    // and darkaura.gif (roaring black/red fire). All three follow the house
+    // idioms above: opts.time (ms) drives the animation, a local save()/
+    // translate()/restore(), rgba gradients, shadowBlur/shadowColor glow, and
+    // 'lighter' compositing for additive embers. None read or write physics.
+    // =======================================================================
+
+    /**
+     * REQUIREMENT 1 — wand charge glow, drawn OVER the wand during 'groundCharge'.
+     * `progress` is the 0..1 charge ratio (Player.chargeRatio): a cool blue→white
+     * orb that PULSES faster and swells as it fills, then at 1.0 SNAPS to a
+     * blinding red core wrapped in a strobing fiery aura + flame tongues — the
+     * "ready to fire the Laser" tell. Draw it at the wand-tip world position.
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} x, y        wand-tip centre (world space)
+     * @param {number} progress    0..1 charge ratio (>=1 == fully charged)
+     * @param {object} [opts]       { time(ms), intensity, radius }
+     */
+    static drawWandGlow(ctx, x, y, progress = 0, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+            radius = 16,
+        } = opts;
+        const A = intensity;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const p = Math.max(0, Math.min(1, progress));
+        const ready = progress >= 0.999;
+
+        // Pulse quickens as the charge builds; at full it strobes hard.
+        const pulseSpeed = 2 + p * 9 + (ready ? 9 : 0);
+        const pulse = 0.62 + 0.38 * Math.sin(t * pulseSpeed);
+        const r = radius * (0.55 + 0.85 * p) * (0.85 + 0.30 * pulse);
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.globalCompositeOperation = 'lighter'; // glows add together
+
+        // 1) Soft aura — cyan/white while charging, fiery red once ready.
+        const aura = ctx.createRadialGradient(0, 0, r * 0.10, 0, 0, r * 1.9);
+        if (ready) {
+            const f = 0.6 + 0.4 * Math.sin(t * 22); // red strobe
+            aura.addColorStop(0.00, `rgba(255, 244, 224, ${0.95 * A})`);
+            aura.addColorStop(0.20, `rgba(255, ${Math.round(70 + 70 * f)}, 40, ${0.90 * A})`);
+            aura.addColorStop(0.55, `rgba(220, 30, 24, ${0.55 * A})`);
+            aura.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
+        } else {
+            const warm = p; // 0 = cool blue, 1 = near-white
+            aura.addColorStop(0.00, `rgba(255, 255, 255, ${(0.50 + 0.40 * p) * A})`);
+            aura.addColorStop(0.30, `rgba(${Math.round(130 + 110 * warm)}, ${Math.round(205 - 35 * warm)}, 255, ${0.60 * A})`);
+            aura.addColorStop(0.70, `rgba(70, 120, 230, ${0.30 * A})`);
+            aura.addColorStop(1.00, 'rgba(20, 30, 80, 0)');
+        }
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2) Blinding core.
+        ctx.shadowBlur = 18 + 22 * p;
+        ctx.shadowColor = ready ? 'rgba(255, 60, 30, 0.95)' : 'rgba(150, 200, 255, 0.9)';
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * A})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (ready ? 0.60 : 0.42) * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3) Orbiting sparks — more + faster as the charge climbs.
+        const N = 6 + Math.round(p * 10);
+        for (let i = 0; i < N; i++) {
+            const ang = t * (3 + 6 * p) + (i * Math.PI * 2) / N;
+            const orbit = r * (0.95 + 0.6 * Math.sin(t * 4 + i));
+            const sx = Math.cos(ang) * orbit;
+            const sy = Math.sin(ang) * orbit;
+            ctx.globalAlpha = (0.3 + 0.5 * (0.5 + 0.5 * Math.sin(t * 6 + i))) * A;
+            ctx.fillStyle = ready
+                ? (i % 3 ? 'rgba(255, 70, 40, 1)' : 'rgba(255, 170, 80, 1)')
+                : (i % 3 ? 'rgba(150, 210, 255, 1)' : 'rgba(230, 245, 255, 1)');
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.3 + 2.0 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // 4) READY: fiery flame tongues fanning up + a strobing red ring flash.
+        if (ready) {
+            const F = 8;
+            for (let i = 0; i < F; i++) {
+                const ang = -Math.PI / 2 + (i / (F - 1) - 0.5) * Math.PI * 1.7 + Math.sin(t * 4 + i) * 0.15;
+                const flick = 0.5 + 0.5 * Math.sin(t * 16 + i * 1.7);
+                const len = r * (1.0 + 0.8 * flick);
+                const tipX = Math.cos(ang) * len;
+                const tipY = Math.sin(ang) * len - r * 0.2; // bias upward (fire rises)
+                const hw = r * 0.22 * (0.6 + 0.4 * flick);
+                const dx = tipX, dy = tipY;
+                const pl = Math.hypot(dx, dy) || 1;
+                const nx = -dy / pl, ny = dx / pl;
+                const g = ctx.createLinearGradient(0, 0, tipX, tipY);
+                g.addColorStop(0.00, 'rgba(20, 0, 0, 0)');
+                g.addColorStop(0.25, `rgba(150, 12, 8, ${0.70 * A})`);
+                g.addColorStop(0.70, `rgba(255, 60, 30, ${0.70 * A * flick})`);
+                g.addColorStop(1.00, 'rgba(255, 150, 60, 0)');
+                ctx.fillStyle = g;
+                ctx.shadowColor = `rgba(255, 50, 20, ${0.7 * A})`;
+                ctx.shadowBlur = 14;
+                ctx.beginPath();
+                ctx.moveTo(nx * hw, ny * hw);
+                ctx.quadraticCurveTo(dx * 0.5 + nx * hw * 1.3, dy * 0.5 + ny * hw * 1.3, tipX, tipY);
+                ctx.quadraticCurveTo(dx * 0.5 - nx * hw * 1.3, dy * 0.5 - ny * hw * 1.3, -nx * hw, -ny * hw);
+                ctx.closePath();
+                ctx.fill();
+            }
+            const rf = 0.5 + 0.5 * Math.sin(t * 20);
+            ctx.globalAlpha = (0.4 + 0.5 * rf) * A;
+            ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = 'rgba(255, 40, 20, 0.95)';
+            ctx.strokeStyle = 'rgba(255, 220, 200, 0.9)';
+            ctx.beginPath();
+            ctx.arc(0, 0, r * (1.2 + 0.2 * rf), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * REQUIREMENT 2 — the fully-charged ground LASER BEAM. A massive, screen-
+     * spanning bolt fired from (x, y) along `facing`: a blinding white-hot core
+     * sheathed in searing orange and deep-red glow strokes under heavy
+     * shadowBlur (the reference look), capped by a radial muzzle flare with
+     * flickering lens-flare star rays at the source. Draw it in world space
+     * (e.g. for the 'laser' projectile), OVER the Boss.
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} x, y      beam origin (the wand muzzle), world space
+     * @param {number} facing    +1 / -1 (the beam shoots this way; mirrors it)
+     * @param {object} [opts]      { time(ms), intensity, length, thickness,
+     *                               progress } progress(0..1) drives an ignition
+     *                               ramp-in + fade-out; omit for a steady beam.
+     */
+    static drawLaserBeam(ctx, x, y, facing = 1, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+            length = 2400,
+            thickness = 46,
+            progress = null,
+        } = opts;
+
+        // Lifetime envelope: fast ignition ramp, hold, smooth tail fade.
+        let env = 1;
+        if (progress != null) {
+            const pr = Math.max(0, Math.min(1, progress));
+            const inP = Math.min(1, pr / 0.12);
+            const outP = pr > 0.75 ? Math.max(0, 1 - (pr - 0.75) / 0.25) : 1;
+            env = Math.min(inP, outP);
+        }
+        const A = intensity * env;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const th = thickness;
+
+        // Energy flicker (fast crackle over a slow swell).
+        const flk = (0.86 + 0.14 * Math.sin(t * 40)) * (0.94 + 0.06 * Math.sin(t * 7.3));
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(facing, 1);          // draw rightward; facing mirrors the whole bolt
+        ctx.lineCap = 'round';
+
+        // Per-layer colour with a soft fade over the last stretch (the beam is
+        // "screen-spanning", so it trails off rather than ending hard).
+        const beamGrad = (rgb, a) => {
+            const g = ctx.createLinearGradient(0, 0, length, 0);
+            g.addColorStop(0.00, `rgba(${rgb}, ${a})`);
+            g.addColorStop(0.72, `rgba(${rgb}, ${a})`);
+            g.addColorStop(1.00, `rgba(${rgb}, 0)`);
+            return g;
+        };
+        const beam = (w, rgb, a, blur, sc) => {
+            ctx.lineWidth = Math.max(1, w * flk);
+            ctx.strokeStyle = beamGrad(rgb, a);
+            ctx.shadowBlur = blur;
+            ctx.shadowColor = `rgba(${sc}, 0.9)`;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(length, 0);
+            ctx.stroke();
+        };
+
+        // Outer bloom -> body -> bright sheath (red/orange glowing strokes).
+        beam(th * 2.8, '255, 40, 20', 0.30 * A, 48, '255, 40, 20');
+        beam(th * 1.9, '255, 90, 30', 0.45 * A, 34, '255, 80, 30');
+        beam(th * 1.15, '255, 140, 50', 0.70 * A, 22, '255, 120, 40');
+        beam(th * 0.62, '255, 230, 180', 0.90 * A, 16, '255, 160, 80');
+
+        // Blinding white-hot core + searing centerline (additive => over-bright).
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = Math.max(1, th * 0.34 * flk);
+        ctx.strokeStyle = beamGrad('255, 255, 255', 0.95 * A);
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
+
+        ctx.lineWidth = Math.max(2, th * 0.12);
+        ctx.strokeStyle = beamGrad('255, 255, 255', 1.0 * A);
+        ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
+
+        // Muzzle flare — radial white→orange→red burst at the source.
+        const fr = th * 1.9 * (0.9 + 0.2 * Math.sin(t * 30));
+        const flare = ctx.createRadialGradient(0, 0, 2, 0, 0, fr);
+        flare.addColorStop(0.00, `rgba(255, 255, 255, ${0.95 * A})`);
+        flare.addColorStop(0.25, `rgba(255, 200, 120, ${0.80 * A})`);
+        flare.addColorStop(0.55, `rgba(255, 70, 30, ${0.45 * A})`);
+        flare.addColorStop(1.00, 'rgba(120, 0, 0, 0)');
+        ctx.fillStyle = flare;
+        ctx.beginPath();
+        ctx.arc(0, 0, fr, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Lens-flare star rays radiating from the muzzle.
+        const R = 12;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(255, 120, 50, 0.9)';
+        for (let i = 0; i < R; i++) {
+            const ang = t * 0.5 + (i * Math.PI * 2) / R;
+            const len = fr * (0.8 + 1.5 * ((i * 7) % 5) / 5) * (0.55 + 0.45 * Math.sin(t * 9 + i));
+            ctx.globalAlpha = (0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 11 + i * 1.7))) * A;
+            ctx.lineWidth = i % 3 === 0 ? 2.2 : 1.2;
+            ctx.strokeStyle = i % 3 === 0 ? 'rgba(255, 235, 200, 1)' : 'rgba(255, 110, 50, 1)';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(ang) * len, Math.sin(ang) * len);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+    }
+
+    /**
+     * REQUIREMENT 3 — the charged-attack aura: roaring, chaotic BLACK & RED fire
+     * wrapping the Boss while 'airCharge' is held and through the 'chargedDive'
+     * (style: darkaura.gif). A black/crimson core haze, a turbulent double crown
+     * of bezier flame tongues (black roots → blood-red → bright tips), drifting
+     * black smoke puffs, plus chaotic additive embers and white-hot crackle
+     * sparks. Draw it BEFORE the Boss sprite (like drawAura) so it stands inside
+     * the fire. Pass `intensity` to fade it in/out.
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} x, y      the Boss figure centre (FX anchor), world space
+     * @param {object} [opts]     { radius, time(ms), intensity }
+     */
+    static drawChargedAirAura(ctx, x, y, opts = {}) {
+        const {
+            radius = 80,
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+        } = opts;
+        const A = intensity;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const R = radius;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 0) Black/red core haze enveloping the figure (all around — it's airborne).
+        const core = ctx.createRadialGradient(0, 0, R * 0.10, 0, 0, R * 1.5);
+        core.addColorStop(0.00, `rgba(80, 4, 4, ${0.42 * A})`);
+        core.addColorStop(0.35, `rgba(30, 2, 4, ${0.50 * A})`);
+        core.addColorStop(0.72, `rgba(8, 0, 2, ${0.40 * A})`);
+        core.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1) Two crowns of roaring, chaotic flame tongues (black root -> red tip).
+        const crown = (count, baseLen, ringX, ringY, biasUp, seed) => {
+            for (let i = 0; i < count; i++) {
+                const ang = (i / count) * Math.PI * 2 + seed;
+                const chaos = Math.sin(t * 7 + i * 2.3 + seed) * Math.sin(t * 3.1 + i * 1.1);
+                const flick = 0.5 + 0.5 * Math.sin(t * 13 + i * 1.9 + seed);
+                const rootX = Math.cos(ang) * ringX;
+                const rootY = Math.sin(ang) * ringY;
+                const len = baseLen * (0.55 + 0.7 * flick) * (0.7 + 0.5 * Math.abs(chaos));
+                const hw = R * (0.10 + 0.05 * flick);
+                const ox = Math.cos(ang), oy = Math.sin(ang);
+                const sway = Math.sin(t * 4 + i * 1.7) * R * 0.12 + chaos * R * 0.10;
+                const tipX = rootX + ox * len * 0.5 + sway;
+                const tipY = rootY + oy * len * 0.4 - len * biasUp;  // upward bias (fire rises)
+
+                const g = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
+                g.addColorStop(0.00, `rgba(4, 0, 0, ${0.90 * A})`);   // near-black root
+                g.addColorStop(0.28, `rgba(90, 6, 6, ${0.80 * A})`);
+                g.addColorStop(0.62, `rgba(210, 28, 20, ${0.78 * A * (0.6 + 0.4 * flick)})`);
+                g.addColorStop(0.88, `rgba(255, 80, 36, ${0.50 * A * flick})`);
+                g.addColorStop(1.00, 'rgba(255, 140, 60, 0)');
+                ctx.fillStyle = g;
+                ctx.shadowColor = `rgba(200, 30, 16, ${0.6 * A})`;
+                ctx.shadowBlur = 16;
+
+                const dx = tipX - rootX, dy = tipY - rootY;
+                const pl = Math.hypot(dx, dy) || 1;
+                const nx = -dy / pl, ny = dx / pl;
+                ctx.beginPath();
+                ctx.moveTo(rootX + nx * hw, rootY + ny * hw);
+                ctx.quadraticCurveTo(rootX + dx * 0.5 + nx * hw * 1.5, rootY + dy * 0.5 + ny * hw * 1.5, tipX, tipY);
+                ctx.quadraticCurveTo(rootX + dx * 0.5 - nx * hw * 1.5, rootY + dy * 0.5 - ny * hw * 1.5, rootX - nx * hw, rootY - ny * hw);
+                ctx.closePath();
+                ctx.fill();
+            }
+        };
+        crown(20, R * 1.05, R * 0.70, R * 0.62, 0.85, 0.0);  // tall outer crown
+        crown(14, R * 0.70, R * 0.50, R * 0.45, 0.60, 1.3);  // dense inner fire
+        ctx.shadowBlur = 0;
+
+        // 2) Drifting BLACK smoke puffs (normal blend) — the chaotic dark element.
+        for (let i = 0; i < 7; i++) {
+            const ph = (t * 0.5 + i / 7) % 1;
+            const ang = t * 0.6 + i * 2.4;
+            const dist = R * (0.4 + 0.7 * ph);
+            const sx = Math.cos(ang) * dist * 0.9;
+            const sy = Math.sin(ang) * dist - ph * R * 0.7;
+            ctx.globalAlpha = (1 - ph) * 0.40 * A;
+            ctx.fillStyle = 'rgba(6, 2, 4, 0.9)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, R * (0.12 + 0.16 * ph), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // 3) Chaotic flying embers + 4) white-hot crackle sparks (additive).
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const P = 30;
+        for (let i = 0; i < P; i++) {
+            const ph = (t * (0.7 + 0.05 * (i % 5)) + i / P) % 1;
+            const ang = i * 2.39996 + t * (1.2 + 0.5 * Math.sin(i)); // golden-angle scatter + drift
+            const spin = Math.sin(t * 5 + i * 1.7);
+            const dist = R * (0.2 + 1.1 * ph) * (0.8 + 0.3 * spin);
+            const ex = Math.cos(ang) * dist + Math.sin(t * 6 + i) * R * 0.08;
+            const ey = Math.sin(ang) * dist - ph * R * 0.9;        // rise
+            ctx.globalAlpha = (1 - ph) * 0.70 * A;
+            ctx.fillStyle = i % 5 === 0 ? 'rgba(255, 150, 60, 1)'
+                          : (i % 3 ? 'rgba(230, 36, 20, 1)' : 'rgba(150, 12, 10, 1)');
+            ctx.beginPath();
+            ctx.arc(ex, ey, 1.2 + 2.4 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (let i = 0; i < 6; i++) {
+            const ang = t * (3 + i) + i * 1.3;
+            const orbit = R * (0.9 + 0.4 * Math.sin(t * 8 + i));
+            ctx.globalAlpha = (0.3 + 0.5 * (0.5 + 0.5 * Math.sin(t * 20 + i))) * A;
+            ctx.fillStyle = 'rgba(255, 210, 170, 1)';
+            ctx.beginPath();
+            ctx.arc(Math.cos(ang) * orbit, Math.sin(ang) * orbit * 0.9, 1.0 + 0.8 * Math.abs(Math.sin(t * 15 + i)), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    /**
+     * STEP 2 — the "CHARGE READY" aura. Rendered CONTINUOUSLY while
+     * Player.isChargeReady is true (Boss airborne, attack button still held, the
+     * 1-second charge complete). A violent, pulsing dark-red & black energy
+     * burst CONTAINED around the Boss — the "this is about to detonate" tell.
+     *
+     * Style guides — darkredaura1/2:
+     *   • a blinding white / bright-red CORE pinned on the figure,
+     *   • a roaring crimson energy RING that breathes with the pulse,
+     *   • black-rooted crimson FLARES stabbing outward into the dark,
+     *   • everything backed by deep black for maximum contrast.
+     *
+     * House idioms (same as drawAura / drawChargedAirAura): `time` (ms) drives the
+     * loop, a local save()/translate()/restore(), rgba gradient heat ramps
+     * (near-black root → crimson → bright tip), HIGH shadowBlur with red/crimson
+     * shadowColor for the menacing glow, and 'lighter' compositing for the
+     * additive cores/embers. Visual-only — it never reads or writes physics/AI.
+     *
+     * Signature is (ctx, x, y, time) as requested; an optional trailing `opts`
+     * ({ radius, intensity }) is accepted so callers can scale / fade it exactly
+     * like the sibling auras. Draw it BEFORE the Boss sprite (like drawAura) so
+     * the figure stands inside the energy; the bright additive core is layered so
+     * it still reads over the silhouette.
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} x, y   the Boss figure centre (FX anchor), world space
+     * @param {number} time   animation clock in ms (e.g. performance.now())
+     * @param {object} [opts] { radius, intensity }
+     */
+    static drawChargeReadyAura(ctx, x, y, time = (typeof performance !== 'undefined' ? performance.now() : Date.now()), opts = {}) {
+        const { radius = 90, intensity = 1 } = opts;
+        const A = intensity;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const R = radius;
+
+        // Unstable pulse signals: a punchy heartbeat, a fast flicker, and a chaotic
+        // jitter so the whole thing reads as power that's barely being contained.
+        const beat    = 0.5 + 0.5 * Math.sin(t * 6.0);                       // 0..1 main pulse
+        const flicker = 0.55 + 0.45 * Math.sin(t * 22.0 + Math.sin(t * 5) * 3);
+        const jitter  = 0.5 * Math.sin(t * 37.0) + 0.5 * Math.sin(t * 19.0); // -1..1 chaos
+        const swell   = 0.90 + 0.16 * beat;                                  // ring breathing
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 0) DEEP BLACK backing — a pool of contained darkness the energy strains
+        //    against, so every bright element below reads with maximum contrast.
+        const dark = ctx.createRadialGradient(0, 0, R * 0.05, 0, 0, R * 1.7);
+        dark.addColorStop(0.00, `rgba(10, 0, 2, ${0.55 * A})`);
+        dark.addColorStop(0.55, `rgba(4, 0, 1, ${0.50 * A})`);
+        dark.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = dark;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1) CRIMSON FLARES stabbing outward past the ring (darkredaura1 "burst"):
+        //    long, thin, black-rooted blades that flicker independently and shoot
+        //    hot crimson tips. High red shadowBlur makes them roar.
+        const FLARES = 24;
+        ctx.shadowBlur = 26;
+        for (let i = 0; i < FLARES; i++) {
+            const ang  = (i / FLARES) * Math.PI * 2 + t * 0.5 + jitter * 0.05;
+            const fl   = 0.5 + 0.5 * Math.sin(t * 17 + i * 2.7);             // per-blade flicker
+            const long = i % 3 === 0;                                        // a few extra-long spikes
+            const len  = R * (0.95 + (long ? 1.15 : 0.65) * fl) * swell;
+            const baseR = R * 0.55;
+            const hw   = R * (0.05 + 0.05 * fl);                             // half-width at the root
+            const ox = Math.cos(ang), oy = Math.sin(ang);
+            const rx = ox * baseR, ry = oy * baseR;                          // root (near the ring)
+            const tx = ox * len,   ty = oy * len;                            // tip (out in the dark)
+            const nx = -oy, ny = ox;                                         // perpendicular
+
+            const g = ctx.createLinearGradient(rx, ry, tx, ty);
+            g.addColorStop(0.00, `rgba(6, 0, 0, ${0.85 * A})`);             // black root
+            g.addColorStop(0.30, `rgba(150, 10, 8, ${0.80 * A})`);
+            g.addColorStop(0.70, `rgba(240, 36, 28, ${0.85 * A * (0.6 + 0.4 * fl)})`);
+            g.addColorStop(1.00, 'rgba(255, 170, 150, 0)');                 // hot fading point
+            ctx.fillStyle = g;
+            ctx.shadowColor = `rgba(220, 30, 20, ${0.7 * A})`;
+            ctx.globalAlpha = (0.55 + 0.45 * fl) * A;
+            ctx.beginPath();
+            ctx.moveTo(rx + nx * hw, ry + ny * hw);
+            ctx.lineTo(tx, ty);
+            ctx.lineTo(rx - nx * hw, ry - ny * hw);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        // 2) The roaring ENERGY RING (darkredaura2): a glowing crimson annulus that
+        //    breathes with the pulse. Drawn additively with a fat red shadow so the
+        //    band blooms like fire rather than reading as a clean stroked circle.
+        const ringR = R * swell;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const band = ctx.createRadialGradient(0, 0, ringR * 0.62, 0, 0, ringR * 1.06);
+        band.addColorStop(0.00, 'rgba(40, 0, 0, 0)');
+        band.addColorStop(0.55, `rgba(150, 12, 10, ${0.45 * A})`);
+        band.addColorStop(0.80, `rgba(240, 40, 30, ${0.85 * A * flicker})`); // bright crest
+        band.addColorStop(0.92, `rgba(255, 90, 60, ${0.55 * A * flicker})`);
+        band.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
+        ctx.fillStyle = band;
+        ctx.shadowColor = `rgba(255, 40, 30, ${0.9 * A})`;
+        ctx.shadowBlur = 34;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR * 1.06, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 2b) Fire tongues licking off the ring (black root -> blood-red -> bright),
+        //     counter-rotating against the flares so the band churns.
+        const TONGUES = 22;
+        ctx.shadowBlur = 18;
+        for (let i = 0; i < TONGUES; i++) {
+            const ang = (i / TONGUES) * Math.PI * 2 - t * 0.9;
+            const fk  = 0.5 + 0.5 * Math.sin(t * 14 + i * 1.9);
+            const ox = Math.cos(ang), oy = Math.sin(ang);
+            const rootX = ox * ringR * 0.86, rootY = oy * ringR * 0.86;
+            const len  = R * (0.22 + 0.40 * fk);
+            const sway = Math.sin(t * 5 + i * 1.7) * R * 0.06;
+            const tipX = ox * (ringR + len) + (-oy) * sway;
+            const tipY = oy * (ringR + len) + ( ox) * sway;
+            const dx = tipX - rootX, dy = tipY - rootY;
+            const pl = Math.hypot(dx, dy) || 1;
+            const nx = -dy / pl, ny = dx / pl;
+            const hw = R * (0.05 + 0.03 * fk);
+
+            const g = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
+            g.addColorStop(0.00, `rgba(4, 0, 0, ${0.85 * A})`);
+            g.addColorStop(0.40, `rgba(150, 12, 10, ${0.80 * A})`);
+            g.addColorStop(0.80, `rgba(245, 45, 32, ${0.70 * A * fk})`);
+            g.addColorStop(1.00, 'rgba(255, 120, 70, 0)');
+            ctx.fillStyle = g;
+            ctx.shadowColor = `rgba(220, 30, 18, ${0.6 * A})`;
+            ctx.beginPath();
+            ctx.moveTo(rootX + nx * hw, rootY + ny * hw);
+            ctx.quadraticCurveTo(rootX + dx * 0.5 + nx * hw * 1.4, rootY + dy * 0.5 + ny * hw * 1.4, tipX, tipY);
+            ctx.quadraticCurveTo(rootX + dx * 0.5 - nx * hw * 1.4, rootY + dy * 0.5 - ny * hw * 1.4, rootX - nx * hw, rootY - ny * hw);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+
+        // 3) The blinding WHITE / RED CORE pinned on the Boss (max contrast vs the
+        //    black backing). Small, savage, and pulsing — the fully-charged heart.
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const coreR = R * (0.30 + 0.10 * beat) * (0.9 + 0.2 * flicker);
+        const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
+        core.addColorStop(0.00, `rgba(255, 255, 250, ${0.95 * A})`);        // white-hot
+        core.addColorStop(0.22, `rgba(255, 225, 210, ${0.90 * A})`);
+        core.addColorStop(0.45, `rgba(255, 70, 50, ${0.85 * A})`);          // bright red
+        core.addColorStop(0.78, `rgba(150, 12, 10, ${0.45 * A})`);
+        core.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
+        ctx.fillStyle = core;
+        ctx.shadowColor = `rgba(255, 60, 40, ${A})`;
+        ctx.shadowBlur = 40;
+        ctx.beginPath();
+        ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // A tighter white pinpoint that strobes with the flicker for instability.
+        ctx.globalAlpha = (0.5 + 0.5 * flicker) * A;
+        ctx.fillStyle = 'rgba(255, 248, 240, 1)';
+        ctx.shadowColor = 'rgba(255, 120, 90, 1)';
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(0, 0, coreR * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 4) Chaotic flying EMBERS + crackle sparks bursting outward (additive).
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const EM = 28;
+        for (let i = 0; i < EM; i++) {
+            const ph  = (t * (0.9 + 0.06 * (i % 5)) + i / EM) % 1;          // 0..1 fly-out
+            const ang = i * 2.39996 + t * (1.1 + 0.4 * Math.sin(i));        // golden-angle scatter
+            const dist = R * (0.35 + 1.25 * ph);
+            const ex = Math.cos(ang) * dist;
+            const ey = Math.sin(ang) * dist;
+            ctx.globalAlpha = (1 - ph) * 0.8 * A;
+            ctx.fillStyle = i % 6 === 0 ? 'rgba(255, 230, 200, 1)'          // a few white sparks
+                          : (i % 2 ? 'rgba(240, 40, 28, 1)' : 'rgba(150, 10, 8, 1)');
+            ctx.shadowColor = 'rgba(255, 40, 26, 1)';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(ex, ey, 1.2 + 2.6 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
             ctx.fill();
         }
         ctx.restore();

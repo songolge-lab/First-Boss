@@ -36,7 +36,7 @@ export class Hitbox {
      * @param {number} [cfg.velocityY]   per-frame Y velocity for a free projectile (0 = glued)
      * @param {boolean}[cfg.isFearStrike] tag a heavy strike so combat routes it to the
      *                                    Hero's fear reaction instead of plain damage
-     * @param {string} [cfg.kind]        renderer tag: 'flame' | 'explosion' | 'shockwave' | null
+     * @param {string} [cfg.kind]        renderer tag: 'flame' | 'explosion' | 'shockwave' | 'laser' | null
      */
     constructor({
         reach, width, height, duration, cooldown, damage,
@@ -110,6 +110,8 @@ export class Hitbox {
         if (cfg.knockback != null) this.knockback = cfg.knockback;
         if (cfg.velocityX != null) this.velocityX = cfg.velocityX;
         if (cfg.velocityY != null) this.velocityY = cfg.velocityY;
+        if (cfg.kind != null) this.kind = cfg.kind;
+        if (cfg.isFearStrike != null) this.isFearStrike = cfg.isFearStrike;
         return this;
     }
 

@@ -120,6 +120,40 @@ export const HERO_SPRITES = {
     ['..............', '..............', '..............', '..............', '..............', '..............', '....KWWWWW....', '...lwwWWWWW...', '.OOiwwwWWWWW..', '..KOOwwqWWWW..', '..KiiOqqwWWW..', '..KiYiqwwwWW..', '..liiiiiwwwK..', '...liiiiiwK...', '....KKKKKK....', '..............'],
     ['..............', '..............', '..............', '..............', '.........O....', '.........O....', '....lWWWOl....', '...lwYWWOWl...', '..KwwwWOWWWW..', '..KiwwwOWWWW..', '..KiiwqqWWWW..', '..KiiiwwwWWW..', '..KiiiiwwwWK..', '...KiiiiwwK...', '....KKKKKK....', '..............'],
   ],
+  attackCombo1: [
+    ['.........qO...', '.....KWWW.qO..', '....KwWWWWqO..', '....KwWWWWO...', '....KYLLYWO...', '...KiwwWWWO...', '...liwwwWql...', '....Kiwwwq....', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWqlOO.', '....KiwwwqOO..', '....KiwwwqO...', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+  ],
+  attackCombo2: [
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWWl...', '....KiwwwqO...', '....KiwwwqO...', '....lLllLlO...', '....KW..KWO...', '....KW..KWqO..', '....KW..KW.O..', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['...........O..', '.....KWWW..O..', '....KwWWWW.O..', '....KwWWWWqO..', '....KYLLYWqO..', '...KiwwWWWql..', '...liwwwWWl...', '....KiwwwW....', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+  ],
+  attackCombo3: [
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWWlq..', '....KiwwwWq...', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWqOOOO', '....Kiwwwq....', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+  ],
+  attackCombo4: [
+    ['....qOOOq.....', '....KWWWO.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWWl...', '....KiwwwWq...', '....KiwwwWq...', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['..............', '.....KWWW...O.', '....KwWWWW.OO.', '....KwWWWWOq..', '....KYLLYWqOO.', '...KiwwWWWqOO.', '...liwwwWWlO..', '....KiwwwWq...', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW..O.', '....KYLLYW.OO.', '...KiwwWWWqOOO', '...liwwwWqOOO.', '....KiwwwqOO..', '....KiwwwqO...', '....lLllLlO...', '....KW..KW.O..', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+  ],
+  castMagic: [
+    ['..............', '.....KWWW.....', '....KwWWWW....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWWq..', '...liwwwWWlqL.', '....KiwwwWq.L.', '....KiwwwW....', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['..............', '.....KWWW....L', '....KwWWWW..LC', '....KwWWWW.LCL', '....KYLLYWqLCW', '...KiwwWWWqLCW', '...liwwwWWlqCL', '....KiwwwWq.LC', '....KiwwwW...L', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+    ['...........L..', '.....KWWW.LCL.', '....KwWWWWLCWC', '....KwWWWWqCWW', '....KYLLYWqWWC', '...KiwwWWWqCWW', '...liwwwWWlqWC', '....KiwwwWq.CL', '....KiwwwW..L.', '....lLllLl....', '....KW..KW....', '....KW..KW....', '....KW..KW....', '...KiK..KwW...', '...KK....KK...', '..............'],
+  ],
+  parryStance: [
+    ['..............', '..........O...', '.....KWWW.....', '....KwWWWWq...', '....KYLLYWqO..', '..O.KiwwWWql..', '...liwwwWWq...', '...KiwwwWWq...', '...KillLll....', '...KWK..KWK...', '..KW.....KW...', '..KW.....KW...', '.OKK.....KKO..', '..K.......K...', '..............', '..............'],
+    ['..............', '..O.......O...', '.....KWWW.q...', '....KwWWWWqO..', '....KYLLYWqG..', '.O..KiwwWWql..', '...liwwwWWq...', '...KiwwwWWq...', '...KillLll.O..', '...KWK..KWK...', '..KW.....KW...', '.OKW.....KWO..', '..KK.....KK...', '..K.......K...', '..............', '..............'],
+  ],
+  airDownStrike: [
+    ['..............', '..............', '.....KWWW.....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWWl...', '....KiwwwWq...', '....KiwwwWq...', '....lLllLl....', '.....KqqK.....', '.....KOOK.....', '......OO......', '......OO......', '......LL......', '......ll......'],
+    ['..............', '..............', '.....KWWW.....', '....KwWWWW....', '....KYLLYW....', '...KiwwWWWW...', '...liwwwWWl...', '....KiwwwWq...', '....KiwwwWq...', '....lLllLl....', '.....KqqK.....', '.....KOOK.....', '......OO......', '.....LLLl.....', '......LL......', '......ll......'],
+  ],
+  fearStunned: [
+    ['..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '...KWWk.......', '..KWLLWk......', '.KwWWWWWwwiK..', '..KKkWWWwKkK..', '...K..qKK.K...', '..............'],
+    ['..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '..............', '...KWWk....q..', '..KWLLWk...q..', '.KwWWWWWwwiK..', '..KKkWWWwKkK..', '...K...qKKk...', '..............'],
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -677,6 +711,286 @@ export class SpriteManager {
      */
     static drawShockwave(ctx, gx, gy, opts = {}) {
         return SpriteManager.drawExplosion(ctx, gx, gy, { radius: 110, ...opts, flat: true });
+    }
+
+    /**
+     * Light-wave magic projectile (the Hero's 3-stage ranged combo). Glowing
+     * yellow/white energy whose SHAPE is chosen by `waveType`:
+     *   1 = diagonal twin-slash, 2 = vertical standing wave, 3 = crossing X.
+     * Self-positions at (x, y); call once per live wave from the Hero's draw().
+     *
+     * @param {number} waveType 1 | 2 | 3
+     * @param {number} facing   +1 / -1 travel direction (mirrors the diagonal)
+     * @param {object} [opts]   { time(ms), alpha }  alpha lets the caller fade by lifetime
+     */
+    static drawLightWave(ctx, x, y, waveType = 1, facing = 1, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            alpha = 1,
+        } = opts;
+        const t = time / 1000;
+        const dir = facing >= 0 ? 1 : -1;
+        const flick = 0.78 + 0.22 * Math.sin(t * 22 + waveType * 1.7); // fast energy flicker
+
+        // Footprint per type (roughly matches the gameplay hitbox half-extents).
+        const dims = waveType === 2 ? { hw: 9, hh: 30 }
+                   : waveType === 3 ? { hw: 22, hh: 22 }
+                   : { hw: 16, hh: 16 };
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.globalAlpha *= alpha;
+        ctx.lineCap = 'round';
+
+        // Soft golden halo behind the glyph.
+        const R = Math.max(dims.hw, dims.hh) * 1.6;
+        const halo = ctx.createRadialGradient(0, 0, 1, 0, 0, R);
+        halo.addColorStop(0.0, `rgba(255, 245, 200, ${0.55 * flick})`);
+        halo.addColorStop(0.4, `rgba(255, 215, 110, ${0.30 * flick})`);
+        halo.addColorStop(1.0, 'rgba(255, 200, 60, 0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(0, 0, R, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Two-pass strokes: a wide warm-gold underglow, then a white-hot core.
+        const passes = [
+            { w: 6.0, color: `rgba(255, 200, 70, ${0.90 * flick})`, blur: 16, glow: 'rgba(255, 190, 50, 0.95)' },
+            { w: 2.4, color: 'rgba(255, 255, 240, 0.98)',           blur: 8,  glow: 'rgba(255, 240, 180, 1)' },
+        ];
+        const stroke = (path) => {
+            for (const p of passes) {
+                ctx.lineWidth = p.w;
+                ctx.strokeStyle = p.color;
+                ctx.shadowBlur = p.blur;
+                ctx.shadowColor = p.glow;
+                ctx.beginPath();
+                path();
+                ctx.stroke();
+            }
+        };
+
+        if (waveType === 2) {
+            // Vertical standing wave: tall central blade + two flanking bars.
+            const { hw, hh } = dims;
+            stroke(() => {
+                ctx.moveTo(0, -hh); ctx.lineTo(0, hh);
+                ctx.moveTo(-hw, -hh * 0.6); ctx.lineTo(-hw, hh * 0.6);
+                ctx.moveTo(hw, -hh * 0.6); ctx.lineTo(hw, hh * 0.6);
+            });
+        } else if (waveType === 3) {
+            // Crossing X with a bright center node; shimmers slightly.
+            const { hw, hh } = dims;
+            ctx.rotate(0.12 * Math.sin(t * 6));
+            stroke(() => {
+                ctx.moveTo(-hw, -hh); ctx.lineTo(hw, hh);
+                ctx.moveTo(hw, -hh); ctx.lineTo(-hw, hh);
+            });
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = 'rgba(255, 240, 180, 1)';
+            ctx.fillStyle = 'rgba(255, 255, 245, 0.95)';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.2 + flick, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Diagonal twin-slash, leaning along travel direction.
+            const { hw, hh } = dims;
+            stroke(() => {
+                ctx.moveTo(-hw * dir, -hh); ctx.lineTo(hw * dir, hh);
+                ctx.moveTo(-hw * dir, -hh * 0.35); ctx.lineTo(hw * 0.6 * dir, hh);
+            });
+        }
+
+        // A few twinkling sparks riding the wave.
+        ctx.shadowBlur = 8;
+        for (let i = 0; i < 5; i++) {
+            const ph = (t * 1.6 + i / 5) % 1;
+            const sx = Math.sin(i * 3.1 + t * 4) * dims.hw * dir;
+            const sy = -dims.hh + ph * dims.hh * 2;
+            ctx.globalAlpha = (1 - ph) * 0.9 * flick * alpha;
+            ctx.fillStyle = i % 2 ? 'rgba(255, 255, 230, 0.95)' : 'rgba(255, 210, 90, 0.95)';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.4 + (i % 2), 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * Glorious lingering golden sparkle burst for the parry COUNTER-ATTACK.
+     * A radiant bloom, an expanding shock ring, long radiating rays and a swarm
+     * of twinkling motes. Self-positions at (x, y) and self-animates, so it can
+     * simply be called every frame the counter is live.
+     *
+     * @param {object} [opts] { time(ms), intensity, radius, progress }
+     *        progress 0..1 (optional) drives the ring expansion + fade; if
+     *        omitted the burst breathes on a gentle loop (good for a hold).
+     */
+    static drawParrySparkles(ctx, x, y, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+            radius = 90,
+            progress = null,
+        } = opts;
+        const t = time / 1000;
+
+        const grow = progress != null ? progress : (0.5 + 0.5 * Math.sin(t * 3));
+        const A = intensity * (progress != null ? Math.max(0, 1 - progress) : 1);
+        if (A <= 0) return;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.lineCap = 'round';
+
+        // 0) Golden bloom core.
+        const bloom = ctx.createRadialGradient(0, 0, 2, 0, 0, radius * 0.9);
+        bloom.addColorStop(0.00, `rgba(255, 250, 210, ${0.55 * A})`);
+        bloom.addColorStop(0.35, `rgba(255, 215, 110, ${0.32 * A})`);
+        bloom.addColorStop(1.00, 'rgba(255, 190, 50, 0)');
+        ctx.fillStyle = bloom;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1) Expanding shock ring.
+        ctx.globalAlpha = 0.80 * A;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(255, 230, 140, 0.9)';
+        ctx.shadowBlur = 22;
+        ctx.shadowColor = 'rgba(255, 200, 60, 1)';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * (0.35 + 0.55 * grow), 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 2) Long radiating rays (alternating long/short), slowly spinning.
+        const RAYS = 12;
+        for (let i = 0; i < RAYS; i++) {
+            const ang = t * 0.8 + (i * Math.PI * 2) / RAYS;
+            const long = i % 2 === 0;
+            const r0 = radius * 0.18;
+            const r1 = radius * (long ? (0.85 + 0.12 * Math.sin(t * 4 + i)) : 0.5);
+            const cos = Math.cos(ang), sin = Math.sin(ang);
+            ctx.globalAlpha = (long ? 0.85 : 0.5) * A * (0.6 + 0.4 * Math.sin(t * 5 + i));
+            ctx.lineWidth = long ? 2.4 : 1.4;
+            ctx.strokeStyle = 'rgba(255, 240, 170, 0.95)';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(255, 210, 90, 0.95)';
+            ctx.beginPath();
+            ctx.moveTo(cos * r0, sin * r0);
+            ctx.lineTo(cos * r1, sin * r1);
+            ctx.stroke();
+        }
+
+        // 3) Twinkling motes scattered through the bloom (golden-angle spread).
+        const M = 18;
+        ctx.shadowBlur = 8;
+        for (let i = 0; i < M; i++) {
+            const ang = i * 2.399963 + t * (0.6 + 0.04 * i);
+            const rad = radius * (0.15 + 0.70 * ((i * 7) % 11) / 11);
+            const px = Math.cos(ang) * rad;
+            const py = Math.sin(ang) * rad * 0.92;
+            const tw = 0.5 + 0.5 * Math.sin(t * 7 + i * 1.7);
+            ctx.globalAlpha = tw * 0.9 * A;
+            ctx.fillStyle = i % 3 === 0 ? 'rgba(255, 255, 240, 0.95)' : 'rgba(255, 215, 110, 0.95)';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(px, py, 1.3 + 1.6 * tw, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * SCREEN-SPACE fear effect — call when the Hero is fear-stunned. Creeping
+     * dark shadows close in from the edges (a violet-tinted vignette + breathing
+     * shadow blobs) with the Boss's aura wisps drifting along the rim, selling
+     * the Boss's looming presence. Draw it in SCREEN space (after the camera
+     * transform is restored), e.g. right before the game-over banner.
+     *
+     * @param {number} canvasWidth
+     * @param {number} canvasHeight
+     * @param {object} [opts] { time(ms), intensity }  intensity fades it in/out.
+     */
+    static drawFearScreenEffect(ctx, canvasWidth, canvasHeight, opts = {}) {
+        const {
+            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+            intensity = 1,
+        } = opts;
+        const A = intensity;
+        if (A <= 0) return;
+        const t = time / 1000;
+        const W = canvasWidth, H = canvasHeight;
+        const cx = W / 2, cy = H / 2;
+        const pulse = 0.85 + 0.15 * Math.sin(t * 2.2);
+
+        ctx.save();
+
+        // 0) Faint full-screen violet dread wash.
+        ctx.fillStyle = `rgba(20, 6, 38, ${0.10 * A * pulse})`;
+        ctx.fillRect(0, 0, W, H);
+
+        // 1) Heavy creeping vignette with a violet (Boss) tint; closes in as it pulses.
+        const inner = Math.min(W, H) * (0.30 - 0.05 * pulse);
+        const outer = Math.hypot(W, H) * 0.62;
+        const vg = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+        vg.addColorStop(0.00, 'rgba(8, 2, 14, 0)');
+        vg.addColorStop(0.55, `rgba(20, 6, 38, ${0.45 * A})`);
+        vg.addColorStop(0.82, `rgba(12, 3, 24, ${0.78 * A * pulse})`);
+        vg.addColorStop(1.00, `rgba(2, 0, 6, ${0.96 * A})`);
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, W, H);
+
+        // 2) Creeping shadow blobs reaching in from each edge.
+        const reachX = Math.min(W, H) * 0.34;
+        const blobs = [
+            { x: 0, y: cy, rx: reachX, ry: H * 0.62 },
+            { x: W, y: cy, rx: reachX, ry: H * 0.62 },
+            { x: cx, y: 0, rx: W * 0.62, ry: reachX },
+            { x: cx, y: H, rx: W * 0.62, ry: reachX },
+        ];
+        for (let i = 0; i < blobs.length; i++) {
+            const b = blobs[i];
+            const breathe = 0.85 + 0.20 * Math.sin(t * 1.7 + i * 1.3);
+            const g = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, Math.max(b.rx, b.ry) * breathe);
+            g.addColorStop(0.0, `rgba(18, 5, 36, ${0.55 * A})`);
+            g.addColorStop(0.6, `rgba(10, 3, 22, ${0.28 * A})`);
+            g.addColorStop(1.0, 'rgba(4, 1, 8, 0)');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.ellipse(b.x, b.y, b.rx * breathe, b.ry * breathe, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 3) Boss-aura wisps drifting along the screen rim (violet, rare red sparks).
+        const N = 26;
+        const peri = 2 * (W + H);
+        ctx.shadowBlur = 12;
+        for (let i = 0; i < N; i++) {
+            const u = ((i / N) + t * 0.03) % 1;
+            const d = u * peri;
+            let px, py;
+            if (d < W) { px = d; py = 0; }
+            else if (d < W + H) { px = W; py = d - W; }
+            else if (d < 2 * W + H) { px = W - (d - (W + H)); py = H; }
+            else { px = 0; py = H - (d - (2 * W + H)); }
+            // pull each wisp slightly inward from the very edge
+            px += (cx - px) * 0.06;
+            py += (cy - py) * 0.06;
+            const s = 2 + 4 * ((i * 7) % 5) / 5;
+            const red = i % 7 === 0;
+            ctx.globalAlpha = (0.18 + 0.34 * (0.5 + 0.5 * Math.sin(t * 1.9 + i))) * A;
+            ctx.fillStyle = red ? 'rgba(255, 50, 50, 0.9)' : 'rgba(130, 65, 200, 0.9)';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.beginPath();
+            ctx.arc(px, py, s, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
     }
 }
 

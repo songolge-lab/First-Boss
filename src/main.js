@@ -4,6 +4,7 @@ import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { UIManager } from './ui/UIManager.js';
 import { ThroneRoom } from './environment/ThroneRoom.js';
+import { SpriteManager } from './core/SpriteManager.js';
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -308,50 +309,56 @@ function handleCombat() {
 
     let enemyTookWeaponHit = false;
 
-    // (a) ALL of the Boss's active hitboxes vs the Hero's body. This now spans the
+    // (a) ALL of the Boss's active hitboxes vs the Hero's body. This spans the
     //     4-hit combo's melee swing AND every spawned hitbox: the Dark Flame
     //     projectile (Hit 3), the Finisher explosion (Hit 4), and the air-dive
-    //     shockwave. Each swing / projectile still damages the Hero at most once
-    //     (markHit), exactly like the old single-slash check did.
+    //     shockwave. Each swing / projectile damages the Hero at most once
+    //     (markHit).
     //
-    //     NOTE: the Fear Strike is the air-dive SHOCKWAVE, which lives in
-    //     player.projectiles -- NOT player.attackHitbox. So we test isFearStrike on
-    //     whichever hitbox actually connects (via getActiveHitboxes()); checking
-    //     player.attackHitbox.isFearStrike directly would never be true here.
+    //     The Fear Strike is the air-dive SHOCKWAVE (it lives in
+    //     player.projectiles, NOT player.attackHitbox), so isFearStrike is tested
+    //     on whichever hitbox actually connects via getActiveHitboxes().
     for (const hb of player.getActiveHitboxes()) {
         if (!hb.overlaps(enemy) || hb.hasHit(enemy)) continue;
 
         const dir = Math.sign(enemy.x - hb.x) || player.facing; // push Hero away from the strike
 
-        // Apply the hit. If the Hero's dodge i-frames block it, takeDamage returns
-        // false and we DON'T mark it, so it can still connect later in its window.
+        // If the Hero's dodge i-frames (or a fresh parry's i-frames) block it,
+        // takeDamage returns false and we DON'T mark it, so it can still connect
+        // later in its active window.
         if (enemy.takeDamage(hb.damage, dir)) {
             hb.markHit(enemy);
             enemyTookWeaponHit = true;
 
-            // --- Fear Strike (air-dive shockwave) ------------------------------
-            // A fear strike doesn't JUST deal damage; it ALSO kicks off the Hero's
-            // fear / fall-down reaction. That reaction is implemented on the Enemy
-            // class in a later phase, so triggerFear() may not exist yet -> guard it.
-            if (hb.isFearStrike === true) {
-                console.log('[Combat] FEAR STRIKE landed on the Enemy! (damage ' + hb.damage + ', kind: ' + hb.kind + ')');
-                if (typeof enemy.triggerFear === 'function') {
-                    enemy.triggerFear();
-                    console.log('[Combat] -> enemy.triggerFear() invoked.');
-                } else {
-                    console.warn('[Combat] -> enemy.triggerFear() not implemented yet ' +
-                                 '(placeholder; the Enemy fall-down reaction lands next phase).');
-                }
+            // A Fear Strike doesn't JUST deal damage; it ALSO kicks off the
+            // Hero's fall-down stun. (triggerFear nullifies itself if the Hero
+            // just parried / is i-framed, so a parried Fear Strike won't stun.)
+            if (hb.isFearStrike === true && typeof enemy.triggerFear === 'function') {
+                enemy.triggerFear();
             }
         }
     }
 
-    // (b) Hero's slash vs the Boss's body -> Boss takes damage + knockback.
-    const heroSlash = enemy.attackHitbox;
-    if (heroSlash.overlaps(player) && !heroSlash.hasHit(player)) {
-        const dir = Math.sign(player.x - enemy.x) || -enemy.facing; // push Boss away
-        if (player.takeDamage(heroSlash.damage, dir)) {
-            heroSlash.markHit(player);
+    // (b) ALL of the Hero's active hitboxes vs the Boss's body -> Boss takes
+    //     damage + knockback. This now spans EVERY offensive box the Hero
+    //     exposes via getActiveHitboxes():
+    //         * the 4-hit melee combo  (the shared attackHitbox, reshaped per hit)
+    //         * the aerial pogo down-strike (also the shared attackHitbox)
+    //         * the 3-stage Light Wave PROJECTILES (enemy.projectiles)
+    //         * the MASSIVE parry COUNTER burst (the shared attackHitbox, centred)
+    //     Mirrors (a): each box connects at most once (markHit), and the Boss's
+    //     post-hit i-frames gate its incoming hits so a multi-frame wave / counter
+    //     can't drain HP every frame. (Falls back to the lone melee hitbox if an
+    //     older Enemy build without getActiveHitboxes() is loaded.)
+    const heroHitboxes = typeof enemy.getActiveHitboxes === 'function'
+        ? enemy.getActiveHitboxes()
+        : [enemy.attackHitbox];
+
+    for (const hb of heroHitboxes) {
+        if (!hb || !hb.overlaps(player) || hb.hasHit(player)) continue;
+        const dir = Math.sign(player.x - hb.x) || -enemy.facing; // push Boss away from the hit
+        if (player.takeDamage(hb.damage, dir)) {
+            hb.markHit(player);
         }
     }
 
@@ -403,6 +410,17 @@ function draw() {
 
     // Atmosphere over the top of everything, then screen-space overlays.
     throneRoom.drawVignette(ctx, width, height);
+
+    // FEAR STUN: while the Hero (gameState.enemies[0] == `enemy`) is fear-stunned,
+    // the Boss's dread floods the screen with creeping darkness. Drawn here in
+    // SCREEN space -- after the camera transform has been restored -- so the
+    // vignette covers the whole viewport, not the world.
+    if (enemy && enemy.fearTimer > 0) {
+        SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height);
+        // For a smooth fade as the stun wears off, pass an intensity instead:
+        //   SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height,
+        //       { intensity: Math.min(1, enemy.fearTimer / 18) });
+    }
 
     if (gameState === State.GAMEOVER) {
         drawGameOver();

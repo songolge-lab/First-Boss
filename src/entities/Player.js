@@ -133,6 +133,14 @@ export class Player {
 
         // --- CHARGED ATTACKS runtime state (hold to charge, release to fire) ---
         this.chargeTimer = 0;        // frames the attack button has been held (0..CHARGE.frames)
+        // LOCKED charge type. Decided ONCE from isGrounded the frame a fresh charge
+        // begins, then held for the ENTIRE button press so the release attack never
+        // flips if the Boss changes grounded-state mid-charge:
+        //   'GROUND_LASER' — started on the ground → releases as the Laser Beam,
+        //                    even if the Boss jumped and is airborne on release.
+        //   'AIR_DIVE'     — started airborne → hover-charge → charged Air Dive.
+        //   null           — not charging.
+        this._chargeType = null;     // null | 'GROUND_LASER' | 'AIR_DIVE'
         this._diveCharged = false;   // was the IN-PROGRESS air dive fully charged? gates the Fear shockwave
         this._laserLockTimer = 0;    // > 0 while the Boss is committed firing the ground Laser Beam
 
@@ -153,6 +161,11 @@ export class Player {
         // pushed here. update() advances + culls them; draw() renders them; main.js
         // reads them via getActiveHitboxes() for collision.
         this.projectiles = [];
+        // Reusable output buffer for getActiveHitboxes() (Stage 1B perf pass):
+        // main.js calls it once per frame and consumes it immediately via a
+        // for-of loop, so it's safe to hand back the same array every time
+        // instead of allocating a fresh one.
+        this._activeHitboxesScratch = [];
 
         // --- REQUIREMENT 1: 4-hit ground combo FSM state ---
         this.comboStep = 0;          // 0 = idle; 1..4 = the active hit
@@ -289,7 +302,14 @@ export class Player {
         // --- Advance + cull free projectiles (flame travels; bursts age out) ---
         for (const p of this.projectiles) p.update();
         if (this.projectiles.length) {
-            this.projectiles = this.projectiles.filter((p) => p.isActive);
+            // In-place compaction (Stage 1B perf pass): same objects, same
+            // relative order, no per-frame array allocation (was .filter()).
+            let write = 0;
+            for (let read = 0; read < this.projectiles.length; read++) {
+                const p = this.projectiles[read];
+                if (p.isActive) this.projectiles[write++] = p;
+            }
+            this.projectiles.length = write;
         }
 
         // --- Track facing from horizontal input (locked while attacking/diving) ---
@@ -365,8 +385,23 @@ export class Player {
 
         // ----- From here comboStep === 0 (idle, free to charge) ----------------
 
-        // === REQUIREMENT 4: Airborne — HOLD to hover + charge, RELEASE to dive ==
-        if (!this.isGrounded && this.dashTimer <= 0) {
+        // === CHARGED ATTACKS: LOCK the charge TYPE once, at charge-start ========
+        // Decide GROUND_LASER vs AIR_DIVE a SINGLE time — from isGrounded on the
+        // first held frame of a fresh press — then keep it for the whole hold
+        // (Requirements 1 & 2). This is what makes a ground-started charge stay a
+        // Laser even after the Boss jumps, and an air-started charge stay a dive.
+        // The dashTimer guard defers charge-start until any active dash ends
+        // (matches the old branches, which were gated on dashTimer <= 0).
+        if (held && this._chargeType === null && this.dashTimer <= 0) {
+            this._chargeType = this.isGrounded ? 'GROUND_LASER' : 'AIR_DIVE';
+        }
+
+        // === AIR_DIVE charge: HOLD to hover + charge, RELEASE to dive ===========
+        // Locked to a charge that STARTED airborne. Hover/dive feel is unchanged
+        // from before — the ONLY difference is the branch is chosen by _chargeType
+        // instead of the current isGrounded, so this can never hijack a ground
+        // charge that jumped.
+        if (this._chargeType === 'AIR_DIVE' && this.dashTimer <= 0) {
             if (held) {
                 // HOVER: gravity off, vertical velocity pinned to 0 while charging.
                 this.chargeTimer = Math.min(this.chargeTimer + 1, CHARGE.frames);
@@ -390,38 +425,39 @@ export class Player {
                 // Release in the air → Air Dive. Fully charged ⇒ Fear-Strike dive.
                 this._startAirDive(this.chargeTimer >= CHARGE.frames);
                 this.chargeTimer = 0;
+                this._chargeType = null;
                 return;
             }
             // not held, no release this frame → fall through to normal air movement
         }
 
-        // === REQUIREMENT 1 & 3: Grounded — HOLD to charge, RELEASE to fire ======
-        if (this.isGrounded && this.dashTimer <= 0) {
+        // === GROUND_LASER charge: HOLD (while moving/jumping!), RELEASE to fire ==
+        // Locked to a charge that STARTED on the ground. Unlike the air charge this
+        // does NOT root the Boss and does NOT hover: it only grows the meter, then
+        // falls through to the normal movement/jump/gravity block below. That lets
+        // the Boss walk, jump, and become airborne mid-charge (Requirement 5) and
+        // STILL fire the Laser on release — regardless of the current isGrounded.
+        if (this._chargeType === 'GROUND_LASER') {
             if (held) {
-                // Charge stance: rooted (bleed momentum) while the meter fills.
                 this.chargeTimer = Math.min(this.chargeTimer + 1, CHARGE.frames);
-                this.velocityY = 0;
-                this.velocityX *= this.friction;
-                if (Math.abs(this.velocityX) < 0.05) this.velocityX = 0;
-                this.x += this.velocityX;
-                this.attackHitbox.reposition(this.x, this.y, this.facing);
-                return;
-            }
-            if (justReleased) {
+                // NO return: let normal horizontal movement, jump, and gravity run.
+            } else if (justReleased) {
                 if (this.chargeTimer >= CHARGE.frames) {
                     this._fireLaser();      // fully charged → massive Laser Beam
-                } else {
-                    this._startComboHit(1); // short tap → normal 4-hit combo
-                    this._updateCombo();    // integrate the first frame immediately
+                    this.chargeTimer = 0;
+                    this._chargeType = null;
+                    return;                 // laser commit owns the coming frames
                 }
+                this._startComboHit(1);     // short tap → normal 4-hit combo
+                this._updateCombo();        // integrate the first frame immediately
                 this.chargeTimer = 0;
-                return;
+                this._chargeType = null;
+                return;                     // combo drives movement this frame
             }
-            // not held, no release this frame → fall through to normal movement
         }
 
-        // Not charging or attacking this frame → discard any stale charge.
-        if (!held) this.chargeTimer = 0;
+        // Not charging or attacking this frame → discard any stale charge/type.
+        if (!held) { this.chargeTimer = 0; this._chargeType = null; }
 
         // === Normal movement (unchanged) =======================================
 
@@ -662,7 +698,11 @@ export class Player {
     // All currently-live Boss hitboxes for the collision resolver in main.js:
     // the melee swing (when active) plus every active projectile/AoE.
     getActiveHitboxes() {
-        const out = [];
+        // Reused scratch array (Stage 1B perf pass): main.js consumes the
+        // result synchronously via a for-of loop before this is ever called
+        // again, so refilling the same array avoids a per-frame allocation.
+        const out = this._activeHitboxesScratch;
+        out.length = 0;
         if (this.attackHitbox.isActive) out.push(this.attackHitbox);
         for (const p of this.projectiles) {
             if (p.isActive) out.push(p);
@@ -688,6 +728,7 @@ export class Player {
         this.airDiveState = 'none';
         // ...and any in-progress charge / live Laser commit (incl. Charge Ready).
         this.chargeTimer = 0;
+        this._chargeType = null;
         this._laserLockTimer = 0;
         this.isChargeReady = false;
 
@@ -712,8 +753,11 @@ export class Player {
         if (this._laserLockTimer > 0) return { name: 'fireLaser', hold: 3 };
         if (this.airDiveState !== 'none' && this._diveCharged) return { name: 'chargedDive', hold: 4 };
         if (this.isCharging) {
-            return this.isGrounded ? { name: 'groundCharge', hold: 4 }
-                                   : { name: 'airCharge', hold: 4 };
+            // Pick the wind-up pose from the LOCKED charge type, not the current
+            // isGrounded, so a ground laser charge keeps the groundCharge pose even
+            // after it jumps (and an air charge keeps airCharge).
+            return this._chargeType === 'GROUND_LASER' ? { name: 'groundCharge', hold: 4 }
+                                                       : { name: 'airCharge', hold: 4 };
         }
 
         // Air dive overrides everything (REQUIREMENT 2).
@@ -757,9 +801,11 @@ export class Player {
         const dashing = this.dashTimer > 0 || (this.comboStep === 4 && this._finisherDashTimer > 0);
 
         // CHARGED-ATTACK render states (STEP 2 wiring). Ground charge => wand glow;
-        // air charge / fully-charged dive => roaring black-red fire aura.
-        const groundCharging = this.isCharging && this.isGrounded;
-        const chargedAir = (this.isCharging && !this.isGrounded) ||
+        // air charge / fully-charged dive => roaring black-red fire aura. Keyed off
+        // the LOCKED _chargeType (not isGrounded) so a ground laser charge keeps its
+        // wand glow after jumping and never flips to the air fire aura mid-charge.
+        const groundCharging = this.isCharging && this._chargeType === 'GROUND_LASER';
+        const chargedAir = (this.isCharging && this._chargeType === 'AIR_DIVE') ||
                            (this.airDiveState !== 'none' && this._diveCharged);
 
         // FACING:

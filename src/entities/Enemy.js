@@ -308,6 +308,11 @@ export class Enemy {
         // Free projectiles owned by the Hero (the 3 light waves; future AoE).
         // Surfaced via getActiveHitboxes() — mirrors player.projectiles.
         this.projectiles = [];
+        // Reusable output buffer for getActiveHitboxes() (Stage 1B perf pass):
+        // main.js calls it once per frame and consumes it immediately via a
+        // for-of loop, so it's safe to hand back the same array every time
+        // instead of allocating a fresh one.
+        this._activeHitboxesScratch = [];
 
         // --- 3. Parry / counter bookkeeping ---
         this._parryTimer = 0;                 // frames left in the brace
@@ -693,7 +698,11 @@ export class Enemy {
     // All of the Hero's currently-damaging hitboxes (mirrors player.getActiveHitboxes()).
     // Includes the shared melee hitbox (combo / counter / pogo) and every live wave.
     getActiveHitboxes() {
-        const out = [];
+        // Reused scratch array (Stage 1B perf pass): main.js consumes the
+        // result synchronously via a for-of loop before this is ever called
+        // again, so refilling the same array avoids a per-frame allocation.
+        const out = this._activeHitboxesScratch;
+        out.length = 0;
         if (this.attackHitbox.isActive) out.push(this.attackHitbox);
         for (const p of this.projectiles) if (p.isActive) out.push(p);
         return out;
@@ -767,7 +776,14 @@ export class Enemy {
         // --- Advance free projectiles every frame (independent of any Hero stun) ---
         if (this.projectiles.length) {
             for (const p of this.projectiles) p.update();
-            this.projectiles = this.projectiles.filter((p) => p.isActive);
+            // In-place compaction (Stage 1B perf pass): same objects, same
+            // relative order, no per-frame array allocation (was .filter()).
+            let write = 0;
+            for (let read = 0; read < this.projectiles.length; read++) {
+                const p = this.projectiles[read];
+                if (p.isActive) this.projectiles[write++] = p;
+            }
+            this.projectiles.length = write;
         }
 
         // Resolve the Boss's AABB half-extents (see param doc above).

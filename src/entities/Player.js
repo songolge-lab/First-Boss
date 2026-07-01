@@ -161,11 +161,6 @@ export class Player {
         // pushed here. update() advances + culls them; draw() renders them; main.js
         // reads them via getActiveHitboxes() for collision.
         this.projectiles = [];
-        // Reusable output buffer for getActiveHitboxes() (Stage 1B perf pass):
-        // main.js calls it once per frame and consumes it immediately via a
-        // for-of loop, so it's safe to hand back the same array every time
-        // instead of allocating a fresh one.
-        this._activeHitboxesScratch = [];
 
         // --- REQUIREMENT 1: 4-hit ground combo FSM state ---
         this.comboStep = 0;          // 0 = idle; 1..4 = the active hit
@@ -302,14 +297,7 @@ export class Player {
         // --- Advance + cull free projectiles (flame travels; bursts age out) ---
         for (const p of this.projectiles) p.update();
         if (this.projectiles.length) {
-            // In-place compaction (Stage 1B perf pass): same objects, same
-            // relative order, no per-frame array allocation (was .filter()).
-            let write = 0;
-            for (let read = 0; read < this.projectiles.length; read++) {
-                const p = this.projectiles[read];
-                if (p.isActive) this.projectiles[write++] = p;
-            }
-            this.projectiles.length = write;
+            this.projectiles = this.projectiles.filter((p) => p.isActive);
         }
 
         // --- Track facing from horizontal input (locked while attacking/diving) ---
@@ -698,11 +686,7 @@ export class Player {
     // All currently-live Boss hitboxes for the collision resolver in main.js:
     // the melee swing (when active) plus every active projectile/AoE.
     getActiveHitboxes() {
-        // Reused scratch array (Stage 1B perf pass): main.js consumes the
-        // result synchronously via a for-of loop before this is ever called
-        // again, so refilling the same array avoids a per-frame allocation.
-        const out = this._activeHitboxesScratch;
-        out.length = 0;
+        const out = [];
         if (this.attackHitbox.isActive) out.push(this.attackHitbox);
         for (const p of this.projectiles) {
             if (p.isActive) out.push(p);

@@ -26,6 +26,8 @@
 //   drawVignette(ctx, w, h)                     -> the vignette on its own (see notes)
 // ---------------------------------------------------------------------------
 
+import { PerfMonitor } from '../core/PerfMonitor.js';
+
 export class ThroneRoom {
     constructor({ worldWidth = 4000, floorY = 600, torchSpacing = 480, embers = true } = {}) {
         this.worldWidth = worldWidth;
@@ -102,9 +104,12 @@ export class ThroneRoom {
         this._view.right = view.right;
 
         // 1) Screen-space backdrop.
+        PerfMonitor.start('render clear/background');
         this._drawBackdrop(ctx, camera, w, h);
+        PerfMonitor.end('render clear/background');
 
         // 2-7) World-locked scene, under the same transform the entities use.
+        PerfMonitor.start('throneRoom render');
         ctx.save();
         camera.applyTransform(ctx);
         this._drawWalls(ctx, view);
@@ -114,6 +119,7 @@ export class ThroneRoom {
         this._drawTorchBodies(ctx, view); // sconces + flames
         if (this.enableEmbers) this._drawEmbers(ctx, view);
         ctx.restore();
+        PerfMonitor.end('throneRoom render');
 
         // 8) Atmosphere. Skip if the caller wants the vignette AFTER the entities
         //    (so the characters also fall into shadow at the screen edges).

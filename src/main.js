@@ -5,6 +5,7 @@ import { Enemy } from './entities/Enemy.js';
 import { UIManager } from './ui/UIManager.js';
 import { ThroneRoom } from './environment/ThroneRoom.js';
 import { SpriteManager } from './core/SpriteManager.js';
+import { PerfMonitor, RENDER_SCALE } from './core/PerfMonitor.js';
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -28,8 +29,11 @@ const NEMESIS_UI_S = 3.0; // focused pause while the Nemesis card is up
 function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+    // Internal drawing buffer only; CSS size (styles/style.css: 100vw/100vh)
+    // is untouched, so RENDER_SCALE never changes the on-screen canvas size —
+    // only its pixel fill cost. RENDER_SCALE is always 1 outside ?perf=1.
+    canvas.width = Math.round(width * RENDER_SCALE);
+    canvas.height = Math.round(height * RENDER_SCALE);
     if (camera) {
         camera.resize(width, height);
         camera.bounds = makeBounds(); // horizon depends on viewport height
@@ -184,8 +188,13 @@ const states = {
         },
         update() {
             // Player can only move/jump/dash/attack here: player.update is gated to PLAYING.
+            PerfMonitor.start('player update');
             player.update(input);
+            PerfMonitor.end('player update');
+
+            PerfMonitor.start('enemy update');
             enemy.update(player.x, player.y);
+            PerfMonitor.end('enemy update');
 
             // Keep the Boss visually facing the active Hero. Cosmetic only: it
             // drives the sprite flip + void-sword aim and never touches physics
@@ -209,7 +218,9 @@ const states = {
             // old "only when bodies overlap" gate: weapon hitboxes reach BEYOND the
             // bodies, so combat must be evaluated every frame. handleCombat() does
             // the body-overlap test itself for the contact rule.)
+            PerfMonitor.start('combat');
             handleCombat();
+            PerfMonitor.end('combat');
         },
     },
 
@@ -283,15 +294,28 @@ function changeState(next) {
 }
 
 function gameLoop(timestamp) {
+    PerfMonitor.frameStart(timestamp);
+
+    // Permanent VFX quality: in auto mode this watches the real frame cadence
+    // during live gameplay (PLAYING only) and latches to lite VFX on weak
+    // devices. Draw-only side effect — it never touches the simulation below.
+    PerfMonitor.vfxAutoTick(timestamp, gameState === State.PLAYING);
+
     let dt = (timestamp - lastTime) / 1000; // seconds
     lastTime = timestamp;
     dt = Math.min(dt, 1 / 30); // clamp so a backgrounded tab can't produce a huge step
 
+    PerfMonitor.start('update');
     states[gameState].update(dt); // world only advances in PLAYING
     camera.update(dt);            // ALWAYS — this is what animates the cinematic pans
     throneRoom.update(dt);        // ALWAYS — torch flicker / embers keep breathing
-    draw();
+    PerfMonitor.end('update');
 
+    PerfMonitor.start('render');
+    draw();
+    PerfMonitor.end('render');
+
+    PerfMonitor.frameEnd();
     requestAnimationFrame(gameLoop);
 }
 
@@ -410,21 +434,46 @@ function handleGameOver() {
 }
 
 function draw() {
+    // RENDER_SCALE (?perf=1&renderScale=0.5) shrinks the internal buffer
+    // (see resize()) without touching CSS size. This single outer transform
+    // maps every subsequent draw call below — camera/world transform,
+    // entities, screen-space overlays — from logical width/height pixels
+    // down into the smaller buffer, so nothing downstream needs to know
+    // about RENDER_SCALE. No-op (identity) when RENDER_SCALE === 1.
+    ctx.save();
+    if (RENDER_SCALE !== 1) ctx.scale(RENDER_SCALE, RENDER_SCALE);
+
     // Throne Room paints its own full-screen backdrop + world-locked scene. We
     // defer its vignette (skipVignette) so it lands AFTER the entities, letting
-    // the Boss/Hero sink into the same edge shadow as the room.
-    throneRoom.render(ctx, camera, width, height, { skipVignette: true });
+    // the Boss/Hero sink into the same edge shadow as the room. It times its
+    // own 'render clear/background' (backdrop) and 'throneRoom render' (the
+    // rest) subsections internally.
+    // Dev-only (?perf=1&skip=throneRoom): skip the whole backdrop/scene draw to
+    // isolate whether it's the FPS culprit. Draw-only — never touches physics.
+    if (!PerfMonitor.shouldSkip('throneRoom')) {
+        throneRoom.render(ctx, camera, width, height, { skipVignette: true });
+    }
 
+    PerfMonitor.start('camera transform setup');
     ctx.save();
     camera.applyTransform(ctx);
+    PerfMonitor.end('camera transform setup');
 
+    PerfMonitor.start('enemy draw total');
     if (enemy) enemy.draw(ctx);
+    PerfMonitor.end('enemy draw total');
+
+    PerfMonitor.start('player draw total');
     player.draw(ctx);
+    PerfMonitor.end('player draw total');
 
     ctx.restore();
 
     // Atmosphere over the top of everything, then screen-space overlays.
-    throneRoom.drawVignette(ctx, width, height);
+    // (?perf=1&skip=throneRoom) also skips the vignette, same reasoning as above.
+    if (!PerfMonitor.shouldSkip('throneRoom')) {
+        throneRoom.drawVignette(ctx, width, height);
+    }
 
     // FEAR STATUS: while the Hero is under the 4s Fear Status, the Boss's dread
     // floods the LEFT/RIGHT edges with roaring black/red flames. Drawn here in
@@ -432,7 +481,11 @@ function draw() {
     // fire walls cover the whole viewport, not the world. Intensity holds at full
     // and fades over the last ~0.4s as the debuff lapses.
     if (enemy && enemy.fearStatusTimer > 0) {
-        SpriteManager.drawFearScreenEffect(ctx, canvas.width, canvas.height, {
+        // Logical width/height (not canvas.width/height): this draws inside
+        // the outer RENDER_SCALE transform above, which already maps logical
+        // pixels to the (possibly smaller) internal buffer. Using the raw
+        // buffer size here would double-apply the scale.
+        SpriteManager.drawFearScreenEffect(ctx, width, height, {
             intensity: Math.min(1, enemy.fearStatusTimer / 24),
         });
     }
@@ -440,6 +493,14 @@ function draw() {
     if (gameState === State.GAMEOVER) {
         drawGameOver();
     }
+
+    // (?perf=1&skip=perfOverlay): skip drawing the overlay itself, e.g. to check
+    // whether the overlay's own draw cost is contributing to a frame drop.
+    if (!PerfMonitor.shouldSkip('perfOverlay')) {
+        PerfMonitor.renderOverlay(ctx, width, height);
+    }
+
+    ctx.restore();
 }
 
 // Basic game-over banner shown when the Boss's HP hits zero (polish later).

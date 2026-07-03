@@ -2,13 +2,51 @@
   "name": "reverse-boss-game",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "npx --yes serve . -l 3000",
+    "electron:dev": "concurrently -k \"npm:start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron electron/main.js\"",
+    "electron:start": "electron electron/main.js",
+    "electron:build": "electron-builder --win portable",
+    "build:www": "node scripts/build-www.mjs",
+    "cap:sync": "npm run build:www && npx cap sync",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Reverse Boss Game",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "build": {
+    "appId": "com.reverseboss.game",
+    "productName": "Reverse Boss Game",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "index.html",
+      "src/**/*",
+      "styles/**/*",
+      "hero_progression_matrix.json",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "ReverseBossGame-${version}-portable.exe"
+    }
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.7",
+    "@capacitor/core": "^7.6.7",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.1"
+  }
 }

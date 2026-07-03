@@ -56,6 +56,7 @@
 
 import { Hitbox } from '../core/Hitbox.js';
 import { SpriteManager, SpriteAnimator, HERO_SPRITES, HERO_PIXEL } from '../core/SpriteManager.js';
+import { PerfMonitor } from '../core/PerfMonitor.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -1179,28 +1180,38 @@ export class Enemy {
         }
 
         // Free projectiles (the 3 light waves) render in world space.
-        this.drawWaveProjectiles(ctx);
+        PerfMonitor.start('enemy projectiles');
+        if (!PerfMonitor.shouldSkip('enemyProjectiles')) this.drawWaveProjectiles(ctx);
+        PerfMonitor.end('enemy projectiles');
 
         // Soft contact shadow, only while actually on the ground.
         if (this.isGrounded) {
             SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * HERO_PIXEL * 0.7);
         }
 
+        PerfMonitor.start('enemy sprite draw');
         const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
             pixelSize: HERO_PIXEL, flip, tint,
             alpha: dodging ? 0.55 : 1,
         });
+        PerfMonitor.end('enemy sprite draw');
         this._spriteTopY = res ? res.originY : null;
 
         // Combat-readability overlays.
-        if (dodging) this.drawDodgeAura(ctx);
-        if (this.moveState === MoveState.ATTACK_WINDUP) this.drawTelegraph(ctx);
-        if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
-        if (inCounter) this.drawCounterBurst(ctx);
-        if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
-        if (this.fearStunTimer > 0) this.drawFearStun(ctx);
+        PerfMonitor.start('enemy parry aura / counter VFX');
+        if (!PerfMonitor.shouldSkip('enemyParryVFX')) {
+            if (dodging) this.drawDodgeAura(ctx);
+            if (this.moveState === MoveState.ATTACK_WINDUP) this.drawTelegraph(ctx);
+            if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
+            if (inCounter) this.drawCounterBurst(ctx);
+            if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
+            if (this.fearStunTimer > 0) this.drawFearStun(ctx);
+        }
+        PerfMonitor.end('enemy parry aura / counter VFX');
 
-        this.drawHealthBar(ctx);
+        PerfMonitor.start('health bars');
+        if (!PerfMonitor.shouldSkip('healthBars')) this.drawHealthBar(ctx);
+        PerfMonitor.end('health bars');
     }
 
     // Red warning arc in the strike direction that "fills" as the combo hit's
@@ -1334,7 +1345,11 @@ export class Enemy {
             if (!p.isActive || p.kind !== 'wave') continue;
             const alpha = 0.85 * (1 - p.lifeProgress * 0.6); // fade over lifetime (unchanged feel)
             const facing = Math.sign(p.velocityX) || 1;      // direction the wave travels
-            SpriteManager.drawLightWave(ctx, p.x, p.y, p.waveType, facing, { alpha });
+            PerfMonitor.start('enemy holy light wave');
+            if (!PerfMonitor.shouldSkip('enemyHolyLightWave')) {
+                SpriteManager.drawLightWave(ctx, p.x, p.y, p.waveType, facing, { alpha });
+            }
+            PerfMonitor.end('enemy holy light wave');
         }
     }
 

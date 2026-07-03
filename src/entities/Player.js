@@ -1,6 +1,7 @@
 // src/entities/Player.js
 import { Hitbox } from '../core/Hitbox.js';
 import { SpriteManager, SpriteAnimator, BOSS_SPRITES, BOSS_PIXEL } from '../core/SpriteManager.js';
+import { PerfMonitor } from '../core/PerfMonitor.js';
 
 // Sword tuning. Frame-based to match the existing per-frame physics (~60fps).
 // Heavy + committed: a real cooldown between slashes so positioning matters
@@ -826,6 +827,7 @@ export class Player {
         this._drawProjectiles(ctx, 'under');
 
         // --- FX layer (drawn BEHIND the sprite) ---
+        PerfMonitor.start('player aura / void edge');
         if (this._dashTrail.length > 1) {
             // REQUIREMENT 3: wind / vacuum streamers trailing the drill.
             SpriteManager.drawSpeedStreaks(ctx, this._dashTrail, { spread: hpx * 0.16 });
@@ -836,7 +838,7 @@ export class Player {
                 radius: hpx * 0.52,
                 intensity: this.hitFlash > 0 ? 1.5 : 1,
             });
-        } else {
+        } else if (!PerfMonitor.shouldSkip('playerAura')) {
             // REQUIREMENT 2/4: the Boss's majestic dark void aura.
             SpriteManager.drawAura(ctx, this.x, bodyCY, {
                 radius: hpx * 0.66,
@@ -860,11 +862,13 @@ export class Player {
                 intensity: Math.min(1, this.fearAuraTimer / 30),
             });
         }
+        PerfMonitor.end('player aura / void edge');
 
         // CHARGED AIR ATTACK: roaring black/red fire wraps the Boss while it
         // hovers-and-charges aloft and through the fully-charged Fear dive. Drawn
         // BEHIND the sprite (like drawAura) so the figure stands inside the fire.
-        if (chargedAir) {
+        PerfMonitor.start('player charge aura');
+        if (chargedAir && !PerfMonitor.shouldSkip('playerChargeAura')) {
             SpriteManager.drawChargedAirAura(ctx, this.x, bodyCY, {
                 radius: hpx * 0.72,
                 intensity: this.hitFlash > 0 ? 1.3 : 1,
@@ -875,23 +879,27 @@ export class Player {
         // the Boss is airborne and still holding (isChargeReady), flare the massive
         // violently-pulsing dark-red burst CONTINUOUSLY until release. Drawn BEHIND
         // the sprite (like the sibling auras) so the figure stands inside the energy.
-        if (this.isCharging && this.isChargeReady) {
+        if (this.isCharging && this.isChargeReady && !PerfMonitor.shouldSkip('playerChargeAura')) {
             SpriteManager.drawChargeReadyAura(ctx, this.x, bodyCY, performance.now(), {
                 radius: hpx * 0.8,
                 intensity: this.hitFlash > 0 ? 1.4 : 1,
             });
         }
+        PerfMonitor.end('player charge aura');
 
         // The Boss sprite (renders 3x the Hero via BOSS_PIXEL).
+        PerfMonitor.start('player sprite draw');
         const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
             pixelSize: BOSS_PIXEL, flip, tint,
         });
+        PerfMonitor.end('player sprite draw');
         this._spriteTopY = res ? res.originY : null;
 
         // CHARGED GROUND ATTACK: the wand orb brightens as the meter fills, then
         // flares blinding red the instant it's fully charged (the laser is ready).
         // Drawn OVER the sprite, anchored at the wand-tip ahead of the Boss.
-        if (groundCharging) {
+        PerfMonitor.start('player charge aura');
+        if (groundCharging && !PerfMonitor.shouldSkip('playerChargeAura')) {
             SpriteManager.drawWandGlow(
                 ctx,
                 this.x + fxDir * hpx * 0.22,
@@ -900,12 +908,15 @@ export class Player {
                 { radius: hpx * 0.18 },
             );
         }
+        PerfMonitor.end('player charge aura');
 
         // --- Finisher explosion punches OVER the Boss for maximum impact ---
         this._drawProjectiles(ctx, 'over');
 
         // Floating HP bar stays (now anchored above the sprite's head).
-        this.drawHealthBar(ctx);
+        PerfMonitor.start('health bars');
+        if (!PerfMonitor.shouldSkip('healthBars')) this.drawHealthBar(ctx);
+        PerfMonitor.end('health bars');
     }
 
     // Render the spawned projectiles/AoE. `layer` controls draw order vs the Boss:
@@ -915,24 +926,40 @@ export class Player {
             if (!p.isActive) continue;
             const prog = p.lifeProgress;
             if (layer === 'under' && p.kind === 'flame') {
-                SpriteManager.drawDarkFlame(ctx, p.x, p.y, p.facing, {
-                    progress: prog, width: p.width, height: p.height,
-                });
+                PerfMonitor.start('player projectiles / dark flame');
+                if (!PerfMonitor.shouldSkip('playerProjectiles')) {
+                    SpriteManager.drawDarkFlame(ctx, p.x, p.y, p.facing, {
+                        progress: prog, width: p.width, height: p.height,
+                    });
+                }
+                PerfMonitor.end('player projectiles / dark flame');
             } else if (layer === 'under' && p.kind === 'shockwave') {
                 // Anchor the ring at the box's bottom (the ground line).
-                SpriteManager.drawShockwave(ctx, p.x, p.y + p.halfHeight, {
-                    progress: prog, radius: p.halfWidth,
-                });
+                PerfMonitor.start('player air dive VFX');
+                if (!PerfMonitor.shouldSkip('playerAirDiveVFX')) {
+                    SpriteManager.drawShockwave(ctx, p.x, p.y + p.halfHeight, {
+                        progress: prog, radius: p.halfWidth,
+                    });
+                }
+                PerfMonitor.end('player air dive VFX');
             } else if (layer === 'over' && p.kind === 'explosion') {
-                SpriteManager.drawExplosion(ctx, p.x, p.y, {
-                    progress: prog, radius: p.halfWidth,
-                });
+                PerfMonitor.start('player projectiles / dark flame');
+                if (!PerfMonitor.shouldSkip('playerProjectiles')) {
+                    SpriteManager.drawExplosion(ctx, p.x, p.y, {
+                        progress: prog, radius: p.halfWidth,
+                    });
+                }
+                PerfMonitor.end('player projectiles / dark flame');
             } else if (layer === 'over' && p.kind === 'laser') {
                 // The Laser box is centred half-a-length ahead, so back off
                 // halfWidth along facing to seat the beam muzzle on the Boss.
-                SpriteManager.drawLaserBeam(ctx, p.x - p.facing * p.halfWidth, p.y, p.facing, {
-                    length: p.width, thickness: p.height, progress: prog,
-                });
+                PerfMonitor.start('player laser beam');
+                if (!PerfMonitor.shouldSkip('playerLaser')) {
+                    SpriteManager.drawLaserBeam(ctx, p.x - p.facing * p.halfWidth, p.y, p.facing, {
+                        length: p.width, thickness: p.height, progress: prog,
+                    });
+                }
+                PerfMonitor.end('player laser beam');
             }
         }
     }

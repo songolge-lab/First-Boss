@@ -15,6 +15,24 @@
 // This file is rendering-only and never mutates entity physics/AI.
 // ---------------------------------------------------------------------------
 
+import { isLiteVfx, isPerfVfx } from './PerfMonitor.js';
+
+// VFX quality gate (?vfxQuality=normal|lite|performance|auto; legacy
+// ?perf=1&vfxBudget=lite). Each VFX method below reads two booleans once at its
+// top:
+//     const LITE = isLiteVfx();  // true in BOTH the lite and performance tiers
+//     const PERF = isPerfVfx();  // true ONLY in the performance tier
+// so the values are DYNAMIC per frame. In 'normal' both are false → every
+// `PERF ? … : (LITE ? … : …)` branch collapses to its ORIGINAL value, so normal-
+// mode visuals are byte-for-byte unchanged. In 'lite' LITE is true and PERF false
+// → the tested lite reductions (fewer shadowBlur passes, dropped duplicate glow
+// layers, fewer decorative particles). In 'performance' both are true → the lite
+// reductions PLUS the more aggressive cuts (further-reduced glow passes/overdraw,
+// fewer particles inside heavy VFX, capped large aura glow sizes). Every tier
+// KEEPS each attack's silhouette/readability. The flags only change between frames
+// (at frameStart via vfxAutoTick), so they are stable within any one draw.
+// Rendering-only: they never read or write any physics/AI/hitbox/timer state.
+
 export const PALETTE = { '.': null, ' ': null, 'K': '#0a0a0f', 'k': '#15151f', 'D': '#241338', 'P': '#3a1f5c', 'p': '#5a2f86', 'u': '#7b46b0', 'B': '#050507', 'E': '#ff3a3a', 'm': '#8a1414', 'S': '#dde4f0', 's': '#8b94a6', 'G': '#e8b341', 'g': '#9c7320', 'W': '#f4f6fb', 'w': '#c2cad8', 'i': '#97a2b6', 'L': '#7fc2ff', 'l': '#3f6ea5', 'Y': '#202838', 'O': '#ffe08a', 'q': '#e8b341', 'a': '#a87a1e', 'R': '#ff3366', 'C': '#33ccff', 'V': '#160a28', 'v': '#2a1450', 'x': '#7e3fd6', 'X': '#c77dff', 'e': '#c41e2a' };
 
 export const BOSS_PIXEL = 6;  // 24*6 = 144px tall
@@ -266,6 +284,8 @@ export class SpriteManager {
             intensity = 1,
         } = opts;
         const t = time / 1000 + seed;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
 
         ctx.save();
         ctx.translate(cx, cy);
@@ -295,8 +315,9 @@ export class SpriteManager {
         ctx.fill();
 
         // 2) Slow-rotating crown of shadow tendrils (the "majestic" silhouette).
-        const T = 10;
-        ctx.shadowBlur = 16;
+        // Performance keeps the crown readable but thins it and drops the blur pass.
+        const T = PERF ? 4 : (LITE ? 6 : 10);
+        ctx.shadowBlur = PERF ? 0 : (LITE ? 8 : 16);
         for (let i = 0; i < T; i++) {
             const ang = t * 0.5 + (i * Math.PI * 2) / T;
             const len = radius * (0.95 + 0.18 * Math.sin(t * 1.3 + i));
@@ -312,8 +333,8 @@ export class SpriteManager {
         }
 
         // 3) Dense ring of swirling shadow wisps (violet, with red sparks).
-        const N = 22;
-        ctx.shadowBlur = 10;
+        const N = PERF ? 7 : (LITE ? 12 : 22);
+        ctx.shadowBlur = LITE ? 0 : 10;
         for (let i = 0; i < N; i++) {
             const ang = t * (0.5 + 0.05 * i) + (i * Math.PI * 2) / N;
             const orbit = radius * (0.50 + 0.40 * Math.sin(t * 1.2 + i * 1.7));
@@ -331,7 +352,7 @@ export class SpriteManager {
         }
 
         // 4) Embers drifting upward through the figure.
-        const E = 8;
+        const E = PERF ? 2 : (LITE ? 4 : 8);
         for (let i = 0; i < E; i++) {
             const phase = (t * 0.6 + i / E) % 1;            // 0..1 rise
             const x = Math.sin((i * 12.9 + t) * 1.3) * radius * 0.45;
@@ -340,7 +361,7 @@ export class SpriteManager {
             ctx.globalAlpha = a;
             ctx.fillStyle = i % 2 ? 'rgba(255, 70, 60, 0.95)' : 'rgba(160, 85, 230, 0.95)';
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = LITE ? 0 : 8;
             ctx.beginPath();
             ctx.arc(x, y, 1.6 + (1 - phase) * 1.8, 0, Math.PI * 2);
             ctx.fill();
@@ -483,6 +504,8 @@ export class SpriteManager {
             intensity = 1,
         } = opts;
         const t = time / 1000;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
 
         ctx.save();
         ctx.translate(x, y);
@@ -495,8 +518,8 @@ export class SpriteManager {
         ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.shadowBlur = 8;
-        for (let i = 0; i < 6; i++) {
+        ctx.shadowBlur = LITE ? 0 : 8;
+        for (let i = 0; i < (PERF ? 2 : (LITE ? 3 : 6)); i++) {
             const ang = dir * (t * 3 + i * 1.05);
             const orbit = radius * (0.30 + 0.40 * ((i * 3) % 4) / 4);
             const px = Math.cos(ang) * orbit;
@@ -605,6 +628,8 @@ export class SpriteManager {
         } = opts;
         const t = time / 1000;
         const ease = (p) => 1 - (1 - p) * (1 - p);
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
 
         // ---- Ground shockwave variant (air-dive landing) ----------------------
         if (flat) {
@@ -629,7 +654,7 @@ export class SpriteManager {
             // The racing ring (bright violet crest + crimson under-ring).
             ctx.globalAlpha = fade * intensity;
             ctx.lineWidth = Math.max(2, r * 0.06 * (1 - progress * 0.6));
-            ctx.shadowBlur = 16;
+            ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 16);
             ctx.shadowColor = 'rgba(150, 80, 255, 0.9)';
             ctx.strokeStyle = 'rgba(230, 200, 255, 0.95)';
             ctx.beginPath();
@@ -644,8 +669,8 @@ export class SpriteManager {
             ctx.stroke();
 
             // Dust motes kicked up around the ring crest.
-            ctx.shadowBlur = 6;
-            const Nd = 14;
+            ctx.shadowBlur = LITE ? 0 : 6;
+            const Nd = PERF ? 4 : (LITE ? 7 : 14);
             for (let i = 0; i < Nd; i++) {
                 const ang = (i / Nd) * Math.PI * 2;
                 const dx = Math.cos(ang) * r;
@@ -686,15 +711,15 @@ export class SpriteManager {
         ctx.globalAlpha = fade * 0.8 * intensity;
         ctx.lineWidth = Math.max(1.5, r * 0.05 * (1 - progress));
         ctx.strokeStyle = 'rgba(255, 230, 180, 0.9)';
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = PERF ? 5 : (LITE ? 9 : 18);
         ctx.shadowColor = 'rgba(255, 140, 60, 0.9)';
         ctx.beginPath();
         ctx.arc(0, 0, r * (0.85 + 0.2 * progress), 0, Math.PI * 2);
         ctx.stroke();
 
         // Radial shards flung outward.
-        ctx.shadowBlur = 10;
-        const Ns = 20;
+        ctx.shadowBlur = LITE ? 0 : 10;
+        const Ns = PERF ? 6 : (LITE ? 10 : 20);
         for (let i = 0; i < Ns; i++) {
             const ang = (i / Ns) * Math.PI * 2 + i * 0.3;
             const dist = r * (0.6 + 0.5 * ((i * 7) % 5) / 5);
@@ -709,7 +734,7 @@ export class SpriteManager {
         }
 
         // Rising smoke puffs as it dissipates.
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < (PERF ? 2 : (LITE ? 3 : 6)); i++) {
             const rise = progress * r * 0.9;
             const px = Math.cos(i * 1.7) * r * 0.4;
             const py = -rise + Math.sin(i * 2.1) * r * 0.1;
@@ -776,6 +801,8 @@ export class SpriteManager {
         if (alpha <= 0 || size <= 0) return;
 
         const t   = time / 1000;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
         const dir = facing >= 0 ? 1 : -1;
         // High-frequency searing flicker -> drives brightness + a little thickness pulse.
         const flick = 0.82 + 0.18 * Math.sin(t * 22 + waveType * 1.9);
@@ -846,9 +873,12 @@ export class SpriteManager {
         const paintCrescent = (rot, ghost = false) => {
             const cr = buildCrescent(rot);
 
-            if (!ghost) {
+            if (!ghost && !PERF) {
                 // (a) Soft holy aura hugging the blade — fat, heavily blurred gold.
-                ctx.shadowBlur  = 40;                                // <- pushed to the max (30-40)
+                // Performance drops this single biggest translucent-overdraw+blur pass
+                // (a 1.55x-scaled full-blade fill); the gold body + white core below
+                // still carry the blade's shape and readability.
+                ctx.shadowBlur  = LITE ? 16 : 40;                    // <- pushed to the max (30-40)
                 ctx.shadowColor = `rgba(255, 205, 70, ${0.95 * flick})`;
                 ctx.fillStyle   = `rgba(255, 198, 72, ${0.34 * flick})`;
                 smoothClosed(cr.outline(1.55));
@@ -856,14 +886,16 @@ export class SpriteManager {
             }
 
             // (b) Thick gold BODY of the blade.
-            ctx.shadowBlur  = ghost ? 16 : 34;
+            ctx.shadowBlur  = ghost ? (LITE ? 8 : 16) : (PERF ? 6 : (LITE ? 14 : 34));
             ctx.shadowColor = 'rgba(255, 200, 60, 0.95)';
             ctx.fillStyle   = ghost ? 'rgba(255, 210, 90, 0.50)' : 'rgba(255, 216, 96, 0.96)';
             smoothClosed(cr.outline(1.0));
             ctx.fill();
 
-            if (!ghost) {
+            if (!ghost && !LITE) {
                 // (b2) Intense, thick golden outer STROKE around the body.
+                // Lite drops this duplicate glow layer; the body fill above +
+                // the amber rim below keep the same blade outline.
                 ctx.shadowBlur  = 32;
                 ctx.shadowColor = 'rgba(255, 196, 56, 0.95)';
                 ctx.strokeStyle = 'rgba(255, 208, 80, 0.90)';
@@ -873,14 +905,14 @@ export class SpriteManager {
             }
 
             // (c) Pale-gold mid layer (smooth white -> gold falloff).
-            ctx.shadowBlur  = ghost ? 8 : 30;
+            ctx.shadowBlur  = ghost ? (LITE ? 6 : 8) : (PERF ? 5 : (LITE ? 12 : 30));
             ctx.shadowColor = 'rgba(255, 238, 168, 0.95)';
             ctx.fillStyle   = 'rgba(255, 240, 172, 0.96)';
             smoothClosed(cr.outline(0.60));
             ctx.fill();
 
             // (d) Blinding WHITE-HOT core (thin inner ribbon).
-            ctx.shadowBlur  = ghost ? 6 : 24;
+            ctx.shadowBlur  = ghost ? (LITE ? 4 : 6) : (PERF ? 5 : (LITE ? 10 : 24));
             ctx.shadowColor = 'rgba(255, 250, 214, 1)';
             ctx.fillStyle   = 'rgba(255, 255, 250, 0.98)';
             smoothClosed(cr.outline(0.30));
@@ -897,12 +929,12 @@ export class SpriteManager {
                 // (f) Searing white centerline down the spine (the "lightning").
                 ctx.beginPath();
                 cr.spine.forEach((p, s) => (s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-                ctx.shadowBlur  = 18;
+                ctx.shadowBlur  = PERF ? 6 : (LITE ? 10 : 18);
                 ctx.shadowColor = 'rgba(255, 232, 150, 1)';
                 ctx.strokeStyle = 'rgba(255, 248, 206, 0.95)';
                 ctx.lineWidth   = Math.max(1.5, size * 0.018);
                 ctx.stroke();
-                ctx.shadowBlur  = 10;
+                ctx.shadowBlur  = PERF ? 4 : (LITE ? 6 : 10);
                 ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
                 ctx.lineWidth   = Math.max(1, size * 0.008);
                 ctx.stroke();
@@ -911,7 +943,9 @@ export class SpriteManager {
         };
 
         // 1) Motion-smear ghosts — faint shrinking trailing copies, drawn first.
-        for (let g = 3; g >= 1; g--) {
+        // Lite keeps a single ghost so the slash still reads as "in motion";
+        // performance drops them entirely (the main slash still reads clearly).
+        for (let g = (PERF ? 0 : (LITE ? 1 : 3)); g >= 1; g--) {
             ctx.save();
             ctx.rotate(-0.06 * g);
             ctx.scale(1 - 0.06 * g, 1 - 0.06 * g);
@@ -931,12 +965,12 @@ export class SpriteManager {
         }
 
         // 3) Trailing sharp "speed" slashes peeling off the back tip (tearing air).
-        ctx.shadowBlur  = 16;
+        ctx.shadowBlur  = PERF ? 4 : (LITE ? 8 : 16);
         ctx.shadowColor = 'rgba(255, 220, 110, 0.90)';
         const back = main.tipBack;
         const ox = Math.cos(back.ang),               oy = Math.sin(back.ang);            // along the arc
         const nx = Math.cos(back.ang + Math.PI / 2), ny = Math.sin(back.ang + Math.PI / 2);
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < (PERF ? 1 : (LITE ? 2 : 4)); i++) {
             const len = size * (0.22 + 0.10 * i) * (0.80 + 0.20 * Math.sin(t * 8 + i));
             const off = (i - 1.5) * size * 0.014;
             const sx  = back.x + nx * off, sy = back.y + ny * off;
@@ -953,8 +987,8 @@ export class SpriteManager {
         }
 
         // 4) Energy sparks flying along the blade edge.
-        ctx.shadowBlur = 12;
-        const SP = waveType === 3 ? 20 : 14;
+        ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 12);
+        const SP = PERF ? 4 : (LITE ? 8 : (waveType === 3 ? 20 : 14));
         for (let i = 0; i < SP; i++) {
             const u   = (t * 0.9 + i / SP) % 1;
             const ang = (baseRot - sweep / 2) + sweep * u;
@@ -1321,6 +1355,8 @@ export class SpriteManager {
         const t = time / 1000;
         const p = Math.max(0, Math.min(1, progress));
         const ready = progress >= 0.999;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
 
         // Pulse quickens as the charge builds; at full it strobes hard.
         const pulseSpeed = 2 + p * 9 + (ready ? 9 : 0);
@@ -1352,7 +1388,7 @@ export class SpriteManager {
         ctx.fill();
 
         // 2) Blinding core.
-        ctx.shadowBlur = 18 + 22 * p;
+        ctx.shadowBlur = PERF ? (6 + 4 * p) : (LITE ? (10 + 8 * p) : (18 + 22 * p));
         ctx.shadowColor = ready ? 'rgba(255, 60, 30, 0.95)' : 'rgba(150, 200, 255, 0.9)';
         ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * A})`;
         ctx.beginPath();
@@ -1360,7 +1396,7 @@ export class SpriteManager {
         ctx.fill();
 
         // 3) Orbiting sparks — more + faster as the charge climbs.
-        const N = 6 + Math.round(p * 10);
+        const N = PERF ? (3 + Math.round(p * 2)) : (LITE ? (4 + Math.round(p * 4)) : (6 + Math.round(p * 10)));
         for (let i = 0; i < N; i++) {
             const ang = t * (3 + 6 * p) + (i * Math.PI * 2) / N;
             const orbit = r * (0.95 + 0.6 * Math.sin(t * 4 + i));
@@ -1371,7 +1407,7 @@ export class SpriteManager {
                 ? (i % 3 ? 'rgba(255, 70, 40, 1)' : 'rgba(255, 170, 80, 1)')
                 : (i % 3 ? 'rgba(150, 210, 255, 1)' : 'rgba(230, 245, 255, 1)');
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = LITE ? 0 : 8;
             ctx.beginPath();
             ctx.arc(sx, sy, 1.3 + 2.0 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
             ctx.fill();
@@ -1380,7 +1416,7 @@ export class SpriteManager {
 
         // 4) READY: fiery flame tongues fanning up + a strobing red ring flash.
         if (ready) {
-            const F = 8;
+            const F = PERF ? 3 : (LITE ? 5 : 8);
             for (let i = 0; i < F; i++) {
                 const ang = -Math.PI / 2 + (i / (F - 1) - 0.5) * Math.PI * 1.7 + Math.sin(t * 4 + i) * 0.15;
                 const flick = 0.5 + 0.5 * Math.sin(t * 16 + i * 1.7);
@@ -1398,7 +1434,7 @@ export class SpriteManager {
                 g.addColorStop(1.00, 'rgba(255, 150, 60, 0)');
                 ctx.fillStyle = g;
                 ctx.shadowColor = `rgba(255, 50, 20, ${0.7 * A})`;
-                ctx.shadowBlur = 14;
+                ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 14);
                 ctx.beginPath();
                 ctx.moveTo(nx * hw, ny * hw);
                 ctx.quadraticCurveTo(dx * 0.5 + nx * hw * 1.3, dy * 0.5 + ny * hw * 1.3, tipX, tipY);
@@ -1409,7 +1445,7 @@ export class SpriteManager {
             const rf = 0.5 + 0.5 * Math.sin(t * 20);
             ctx.globalAlpha = (0.4 + 0.5 * rf) * A;
             ctx.lineWidth = 2.5;
-            ctx.shadowBlur = 16;
+            ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 16);
             ctx.shadowColor = 'rgba(255, 40, 20, 0.95)';
             ctx.strokeStyle = 'rgba(255, 220, 200, 0.9)';
             ctx.beginPath();
@@ -1457,6 +1493,8 @@ export class SpriteManager {
         if (A <= 0) return;
         const t = time / 1000;
         const th = thickness;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
 
         // Energy flicker (fast crackle over a slow swell).
         const flk = (0.86 + 0.14 * Math.sin(t * 40)) * (0.94 + 0.06 * Math.sin(t * 7.3));
@@ -1487,22 +1525,27 @@ export class SpriteManager {
         };
 
         // Outer bloom -> body -> bright sheath (red/orange glowing strokes).
-        beam(th * 2.8, '255, 40, 20', 0.30 * A, 48, '255, 40, 20');
-        beam(th * 1.9, '255, 90, 30', 0.45 * A, 34, '255, 80, 30');
-        beam(th * 1.15, '255, 140, 50', 0.70 * A, 22, '255, 120, 40');
-        beam(th * 0.62, '255, 230, 180', 0.90 * A, 16, '255, 160, 80');
+        // Lite collapses the two widest translucent bloom passes into one slightly
+        // stronger red glow and caps every shadowBlur, keeping the thick red/orange
+        // beam identity at a fraction of the fill+blur cost. Performance narrows that
+        // widest bloom stroke further (less full-length transparent overdraw) and
+        // caps its blur harder — the body + sheath below still read as a thick beam.
+        beam(th * (PERF ? 2.0 : 2.8), '255, 40, 20', (LITE ? 0.42 : 0.30) * A, PERF ? 8 : (LITE ? 16 : 48), '255, 40, 20');
+        if (!LITE) beam(th * 1.9, '255, 90, 30', 0.45 * A, 34, '255, 80, 30');
+        beam(th * 1.15, '255, 140, 50', 0.70 * A, PERF ? 6 : (LITE ? 12 : 22), '255, 120, 40');
+        beam(th * 0.62, '255, 230, 180', 0.90 * A, PERF ? 6 : (LITE ? 10 : 16), '255, 160, 80');
 
         // Blinding white-hot core + searing centerline (additive => over-bright).
         ctx.globalCompositeOperation = 'lighter';
         ctx.lineWidth = Math.max(1, th * 0.34 * flk);
         ctx.strokeStyle = beamGrad('255, 255, 255', 0.95 * A);
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = PERF ? 6 : (LITE ? 10 : 14);
         ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
 
         ctx.lineWidth = Math.max(2, th * 0.12);
         ctx.strokeStyle = beamGrad('255, 255, 255', 1.0 * A);
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = PERF ? 4 : (LITE ? 6 : 8);
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
 
         // Muzzle flare — radial white→orange→red burst at the source.
@@ -1518,8 +1561,8 @@ export class SpriteManager {
         ctx.fill();
 
         // Lens-flare star rays radiating from the muzzle.
-        const R = 12;
-        ctx.shadowBlur = 12;
+        const R = PERF ? 4 : (LITE ? 6 : 12);
+        ctx.shadowBlur = PERF ? 4 : (LITE ? 6 : 12);
         ctx.shadowColor = 'rgba(255, 120, 50, 0.9)';
         for (let i = 0; i < R; i++) {
             const ang = t * 0.5 + (i * Math.PI * 2) / R;
@@ -1560,19 +1603,24 @@ export class SpriteManager {
         if (A <= 0) return;
         const t = time / 1000;
         const R = radius;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
+        // Performance caps the large transparent haze radius so this big airborne
+        // aura fill covers less overdraw while still enveloping the figure.
+        const haloR = PERF ? R * 1.2 : R * 1.5;
 
         ctx.save();
         ctx.translate(x, y);
 
         // 0) Black/red core haze enveloping the figure (all around — it's airborne).
-        const core = ctx.createRadialGradient(0, 0, R * 0.10, 0, 0, R * 1.5);
+        const core = ctx.createRadialGradient(0, 0, R * 0.10, 0, 0, haloR);
         core.addColorStop(0.00, `rgba(80, 4, 4, ${0.42 * A})`);
         core.addColorStop(0.35, `rgba(30, 2, 4, ${0.50 * A})`);
         core.addColorStop(0.72, `rgba(8, 0, 2, ${0.40 * A})`);
         core.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = core;
         ctx.beginPath();
-        ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2);
+        ctx.arc(0, 0, haloR, 0, Math.PI * 2);
         ctx.fill();
 
         // 1) Two crowns of roaring, chaotic flame tongues (black root -> red tip).
@@ -1598,7 +1646,7 @@ export class SpriteManager {
                 g.addColorStop(1.00, 'rgba(255, 140, 60, 0)');
                 ctx.fillStyle = g;
                 ctx.shadowColor = `rgba(200, 30, 16, ${0.6 * A})`;
-                ctx.shadowBlur = 16;
+                ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 16);
 
                 const dx = tipX - rootX, dy = tipY - rootY;
                 const pl = Math.hypot(dx, dy) || 1;
@@ -1611,12 +1659,12 @@ export class SpriteManager {
                 ctx.fill();
             }
         };
-        crown(20, R * 1.05, R * 0.70, R * 0.62, 0.85, 0.0);  // tall outer crown
-        crown(14, R * 0.70, R * 0.50, R * 0.45, 0.60, 1.3);  // dense inner fire
+        crown(PERF ? 8 : (LITE ? 12 : 20), R * 1.05, R * 0.70, R * 0.62, 0.85, 0.0);  // tall outer crown
+        crown(PERF ? 5 : (LITE ? 8 : 14), R * 0.70, R * 0.50, R * 0.45, 0.60, 1.3);   // dense inner fire
         ctx.shadowBlur = 0;
 
         // 2) Drifting BLACK smoke puffs (normal blend) — the chaotic dark element.
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i < (PERF ? 2 : (LITE ? 4 : 7)); i++) {
             const ph = (t * 0.5 + i / 7) % 1;
             const ang = t * 0.6 + i * 2.4;
             const dist = R * (0.4 + 0.7 * ph);
@@ -1633,7 +1681,7 @@ export class SpriteManager {
         // 3) Chaotic flying embers + 4) white-hot crackle sparks (additive).
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        const P = 30;
+        const P = PERF ? 8 : (LITE ? 14 : 30);
         for (let i = 0; i < P; i++) {
             const ph = (t * (0.7 + 0.05 * (i % 5)) + i / P) % 1;
             const ang = i * 2.39996 + t * (1.2 + 0.5 * Math.sin(i)); // golden-angle scatter + drift
@@ -1648,7 +1696,7 @@ export class SpriteManager {
             ctx.arc(ex, ey, 1.2 + 2.4 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
             ctx.fill();
         }
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < (PERF ? 2 : (LITE ? 3 : 6)); i++) {
             const ang = t * (3 + i) + i * 1.3;
             const orbit = R * (0.9 + 0.4 * Math.sin(t * 8 + i));
             ctx.globalAlpha = (0.3 + 0.5 * (0.5 + 0.5 * Math.sin(t * 20 + i))) * A;
@@ -1697,6 +1745,11 @@ export class SpriteManager {
         if (A <= 0) return;
         const t = time / 1000;
         const R = radius;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
+        // Performance caps the huge deep-black backing radius so this large aura's
+        // biggest transparent fill covers less overdraw (still frames the figure).
+        const backR = PERF ? R * 1.4 : R * 1.7;
 
         // Unstable pulse signals: a punchy heartbeat, a fast flicker, and a chaotic
         // jitter so the whole thing reads as power that's barely being contained.
@@ -1710,20 +1763,20 @@ export class SpriteManager {
 
         // 0) DEEP BLACK backing — a pool of contained darkness the energy strains
         //    against, so every bright element below reads with maximum contrast.
-        const dark = ctx.createRadialGradient(0, 0, R * 0.05, 0, 0, R * 1.7);
+        const dark = ctx.createRadialGradient(0, 0, R * 0.05, 0, 0, backR);
         dark.addColorStop(0.00, `rgba(10, 0, 2, ${0.55 * A})`);
         dark.addColorStop(0.55, `rgba(4, 0, 1, ${0.50 * A})`);
         dark.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = dark;
         ctx.beginPath();
-        ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
+        ctx.arc(0, 0, backR, 0, Math.PI * 2);
         ctx.fill();
 
         // 1) CRIMSON FLARES stabbing outward past the ring (darkredaura1 "burst"):
         //    long, thin, black-rooted blades that flicker independently and shoot
         //    hot crimson tips. High red shadowBlur makes them roar.
-        const FLARES = 24;
-        ctx.shadowBlur = 26;
+        const FLARES = PERF ? 8 : (LITE ? 12 : 24);
+        ctx.shadowBlur = PERF ? 6 : (LITE ? 12 : 26);
         for (let i = 0; i < FLARES; i++) {
             const ang  = (i / FLARES) * Math.PI * 2 + t * 0.5 + jitter * 0.05;
             const fl   = 0.5 + 0.5 * Math.sin(t * 17 + i * 2.7);             // per-blade flicker
@@ -1768,7 +1821,7 @@ export class SpriteManager {
         band.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
         ctx.fillStyle = band;
         ctx.shadowColor = `rgba(255, 40, 30, ${0.9 * A})`;
-        ctx.shadowBlur = 34;
+        ctx.shadowBlur = PERF ? 8 : (LITE ? 16 : 34);
         ctx.beginPath();
         ctx.arc(0, 0, ringR * 1.06, 0, Math.PI * 2);
         ctx.fill();
@@ -1776,8 +1829,8 @@ export class SpriteManager {
 
         // 2b) Fire tongues licking off the ring (black root -> blood-red -> bright),
         //     counter-rotating against the flares so the band churns.
-        const TONGUES = 22;
-        ctx.shadowBlur = 18;
+        const TONGUES = PERF ? 6 : (LITE ? 10 : 22);
+        ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 18);
         for (let i = 0; i < TONGUES; i++) {
             const ang = (i / TONGUES) * Math.PI * 2 - t * 0.9;
             const fk  = 0.5 + 0.5 * Math.sin(t * 14 + i * 1.9);
@@ -1821,7 +1874,7 @@ export class SpriteManager {
         core.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
         ctx.fillStyle = core;
         ctx.shadowColor = `rgba(255, 60, 40, ${A})`;
-        ctx.shadowBlur = 40;
+        ctx.shadowBlur = PERF ? 10 : (LITE ? 18 : 40);
         ctx.beginPath();
         ctx.arc(0, 0, coreR, 0, Math.PI * 2);
         ctx.fill();
@@ -1830,7 +1883,7 @@ export class SpriteManager {
         ctx.globalAlpha = (0.5 + 0.5 * flicker) * A;
         ctx.fillStyle = 'rgba(255, 248, 240, 1)';
         ctx.shadowColor = 'rgba(255, 120, 90, 1)';
-        ctx.shadowBlur = 30;
+        ctx.shadowBlur = PERF ? 8 : (LITE ? 14 : 30);
         ctx.beginPath();
         ctx.arc(0, 0, coreR * 0.34, 0, Math.PI * 2);
         ctx.fill();
@@ -1839,7 +1892,7 @@ export class SpriteManager {
         // 4) Chaotic flying EMBERS + crackle sparks bursting outward (additive).
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        const EM = 28;
+        const EM = PERF ? 8 : (LITE ? 12 : 28);
         for (let i = 0; i < EM; i++) {
             const ph  = (t * (0.9 + 0.06 * (i % 5)) + i / EM) % 1;          // 0..1 fly-out
             const ang = i * 2.39996 + t * (1.1 + 0.4 * Math.sin(i));        // golden-angle scatter
@@ -1850,7 +1903,7 @@ export class SpriteManager {
             ctx.fillStyle = i % 6 === 0 ? 'rgba(255, 230, 200, 1)'          // a few white sparks
                           : (i % 2 ? 'rgba(240, 40, 28, 1)' : 'rgba(150, 10, 8, 1)');
             ctx.shadowColor = 'rgba(255, 40, 26, 1)';
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 12);
             ctx.beginPath();
             ctx.arc(ex, ey, 1.2 + 2.6 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
             ctx.fill();

@@ -1,6 +1,7 @@
 // src/entities/Player.js
 import { Hitbox } from '../core/Hitbox.js';
-import { SpriteManager, SpriteAnimator, BOSS_SPRITES, BOSS_PIXEL } from '../core/SpriteManager.js';
+import { SpriteManager, SpriteAnimator, BOSS_SPRITES, BOSS_PIXEL,
+         BOSS_IDLE_PIXEL, BOSS_REDESIGN_PALETTE, BOSS_REDESIGN_SPRITES } from '../core/SpriteManager.js';
 import { PerfMonitor } from '../core/PerfMonitor.js';
 
 // Sword tuning. Frame-based to match the existing per-frame physics (~60fps).
@@ -191,7 +192,11 @@ export class Player {
         this.knockbackLift = 8;
 
         // --- Pixel-art rendering (visual only; never affects physics/combat) ---
-        this.anim = new SpriteAnimator(BOSS_SPRITES);
+        // Redesigned movement clips (idle + run/retreat/jump/fall/doubleJump/dash) are
+        // merged OVER the legacy sheet, so the animator serves the new art for those
+        // states and the untouched legacy frames for everything else (attacks/charges —
+        // redesigned in a later step). Merge is rendering-only; clip names/timing match.
+        this.anim = new SpriteAnimator({ ...BOSS_SPRITES, ...BOSS_REDESIGN_SPRITES });
         this._spriteTopY = null; // set each draw from the sprite; positions the HP bar
 
         // --- Dynamic aiming + dash FX (visual only; never touches physics) ---
@@ -778,6 +783,19 @@ export class Player {
         const frame = this.anim.current();
         if (!frame) return;
 
+        // REDESIGN (VISUAL_REDESIGN_BIBLE.md §7 Steps 1-2): the animator merges the
+        // redesigned movement clips (idle + locomotion) over the legacy sheet. Redesigned
+        // frames are 48 rows tall at BOSS_IDLE_PIXEL with their own palette; legacy clips
+        // (attacks/charges, not yet redesigned) are 24 rows at BOSS_PIXEL. Detect by row
+        // count so each renders at the correct scale/palette and any not-yet-redesigned
+        // clip falls back automatically. Visual-only: both total 144px, same feet anchor.
+        let pixelSize = BOSS_PIXEL;
+        let spritePalette;   // undefined => drawMatrix falls back to the global PALETTE
+        if (frame.length >= 40) {
+            pixelSize = BOSS_IDLE_PIXEL;
+            spritePalette = BOSS_REDESIGN_PALETTE;
+        }
+
         const feetY = this.y + this.halfHeight;            // the sprite stands here
 
         const attacking = this.comboStep > 0;
@@ -806,7 +824,7 @@ export class Player {
         const fxDir = (attacking || diving) ? this.attackDir : this.aimDir; // void-edge aim
         const tint = this.hitFlash > 0 ? '#ffffff' : null;  // white hit-flash
 
-        const hpx = frame.length * BOSS_PIXEL;
+        const hpx = frame.length * pixelSize;
         const bodyCY = feetY - hpx * 0.5;                   // figure centre (FX anchor)
 
         // Record a short position trail while dashing, then let it drain so the
@@ -820,7 +838,7 @@ export class Player {
 
         // Soft contact shadow, only while actually on the ground.
         if (this.isGrounded) {
-            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * BOSS_PIXEL * 0.6);
+            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * pixelSize * 0.6);
         }
 
         // --- Ground-level projectiles BEHIND the Boss (Dark Flame, shockwave) ---
@@ -887,10 +905,10 @@ export class Player {
         }
         PerfMonitor.end('player charge aura');
 
-        // The Boss sprite (renders 3x the Hero via BOSS_PIXEL).
+        // The Boss sprite (renders at pixelSize; idle uses the redesigned sheet+palette).
         PerfMonitor.start('player sprite draw');
         const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
-            pixelSize: BOSS_PIXEL, flip, tint,
+            pixelSize, flip, tint, palette: spritePalette,
         });
         PerfMonitor.end('player sprite draw');
         this._spriteTopY = res ? res.originY : null;

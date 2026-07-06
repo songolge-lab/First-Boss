@@ -55,7 +55,14 @@
 // ---------------------------------------------------------------------------
 
 import { Hitbox } from '../core/Hitbox.js';
-import { SpriteManager, SpriteAnimator, HERO_SPRITES, HERO_PIXEL } from '../core/SpriteManager.js';
+import { SpriteManager, SpriteAnimator, HERO_SPRITES, HERO_PIXEL,
+         HERO_IDLE_PIXEL, HERO_REDESIGN_PALETTE, HERO_REDESIGN_SPRITES } from '../core/SpriteManager.js';
+
+// Rendering sheet: the redesigned clips merged OVER the legacy HERO_SPRITES. Used for
+// both the animator AND _clip() so the new combat state names (cast/parry/parry_counter/
+// air_attack/hurt) resolve to real redesigned clips; any name absent here still falls
+// back to the legacy sheet. Rendering-only — no AI/physics/timing depends on this.
+const HERO_SHEET = { ...HERO_SPRITES, ...HERO_REDESIGN_SPRITES };
 import { PerfMonitor } from '../core/PerfMonitor.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -344,7 +351,7 @@ export class Enemy {
         this.hitFlashDuration = 8;
 
         // --- Pixel-art rendering (visual only) ---
-        this.anim = new SpriteAnimator(HERO_SPRITES);
+        this.anim = new SpriteAnimator(HERO_SHEET);
         this._spriteTopY = null;
     }
 
@@ -1130,10 +1137,11 @@ export class Enemy {
     // === Rendering (visual only; never writes the AI/physics state) =========
 
     // Pick the first sprite clip that actually exists, so aspirational state
-    // names ('cast', 'parry', 'air_attack', 'hurt', ...) degrade gracefully
-    // until the Hero sprite sheet gains them, then light up automatically.
+    // names ('cast', 'parry', 'air_attack', 'hurt', ...) degrade gracefully.
+    // Checks the merged HERO_SHEET (redesigned + legacy), so the redesigned
+    // combat clips now resolve; anything still missing falls back to 'idle'.
     _clip(...names) {
-        for (const n of names) if (HERO_SPRITES[n]) return n;
+        for (const n of names) if (HERO_SHEET[n]) return n;
         return 'idle';
     }
 
@@ -1166,6 +1174,19 @@ export class Enemy {
         const frame = this.anim.current();
         if (!frame) return;
 
+        // REDESIGN (VISUAL_REDESIGN_BIBLE.md §7 Step 4): the animator (HERO_SHEET) merges
+        // the redesigned movement + combat clips over the legacy sheet. Redesigned frames
+        // are 24 rows tall at HERO_IDLE_PIXEL with their own palette; legacy clips are 16
+        // rows at HERO_PIXEL. Detect by row count so each renders at the correct scale/
+        // palette and any not-yet-redesigned clip falls back automatically. Visual-only:
+        // both resolutions total 48px with the same feet anchor.
+        let pixelSize = HERO_PIXEL;
+        let spritePalette;   // undefined => drawMatrix falls back to the global PALETTE
+        if (frame.length >= 20) {
+            pixelSize = HERO_IDLE_PIXEL;
+            spritePalette = HERO_REDESIGN_PALETTE;
+        }
+
         const feetY = this.y + this.halfHeight; // the sprite stands here
         const flip = this.facing === -1;        // art is drawn facing right
         const inCounter = this.moveState === MoveState.PARRY_COUNTER;
@@ -1186,12 +1207,12 @@ export class Enemy {
 
         // Soft contact shadow, only while actually on the ground.
         if (this.isGrounded) {
-            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * HERO_PIXEL * 0.7);
+            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * pixelSize * 0.7);
         }
 
         PerfMonitor.start('enemy sprite draw');
         const res = SpriteManager.drawSprite(ctx, frame, this.x, feetY, {
-            pixelSize: HERO_PIXEL, flip, tint,
+            pixelSize, flip, tint, palette: spritePalette,
             alpha: dodging ? 0.55 : 1,
         });
         PerfMonitor.end('enemy sprite draw');

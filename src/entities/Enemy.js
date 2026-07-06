@@ -1218,11 +1218,18 @@ export class Enemy {
         PerfMonitor.end('enemy sprite draw');
         this._spriteTopY = res ? res.originY : null;
 
+        // Silver-blue motion trail while dashing (graceful speed, not smoke).
+        if (this.moveState === MoveState.DASHING && !PerfMonitor.shouldSkip('enemyParryVFX')) {
+            this.drawDashTrail(ctx, frame, pixelSize, flip, spritePalette);
+        }
+
         // Combat-readability overlays.
         PerfMonitor.start('enemy parry aura / counter VFX');
         if (!PerfMonitor.shouldSkip('enemyParryVFX')) {
             if (dodging) this.drawDodgeAura(ctx);
             if (this.moveState === MoveState.ATTACK_WINDUP) this.drawTelegraph(ctx);
+            // The holy sword-arc rides the active strike frames of the melee combo.
+            if (this.moveState === MoveState.ATTACKING && this._comboPhase === 'active') this.drawSlashArc(ctx);
             if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
             if (inCounter) this.drawCounterBurst(ctx);
             if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
@@ -1258,17 +1265,61 @@ export class Enemy {
         ctx.restore();
     }
 
-    // Cyan aura signalling the Hero's dodge invulnerability window.
+    // The Hero's holy sword-arc — a clean light-infused crescent that sweeps
+    // through the active frames of each melee-combo hit. Reads existing combo
+    // state ONLY (index/phase/timer); it never alters reach, damage, or timing.
+    drawSlashArc(ctx) {
+        const h = COMBO.HITS[this._comboIndex];
+        if (!h) return;
+        const progress = h.active > 0 ? 1 - this._comboPhaseTimer / h.active : 1;
+        const heavy = this._comboIndex === COMBO.HITS.length - 1;   // the finisher carves wider
+        const cx = this.x + this.facing * (this.radius * 0.3);
+        const cy = this.y - this.radius * 0.15;
+        SpriteManager.drawHolySlash(ctx, cx, cy, this.facing, progress, {
+            reach: h.reachOff,
+            size: (h.width + h.height) * 0.62,   // blade scale tracks the hit's hitbox shape (visual only)
+            heavy,
+        });
+    }
+
+    // Silver-blue afterimage trail while dashing — graceful speed support, drawn
+    // as a few fading tinted copies of the current sprite behind the travel
+    // direction. Rendering only; dash distance / duration are unchanged.
+    drawDashTrail(ctx, frame, pixelSize, flip, spritePalette) {
+        const dir = Math.sign(this.velocityX) || this.facing;
+        const feetY = this.y + this.halfHeight;
+        const copies = PerfMonitor.isPerfVfx() ? 1 : (PerfMonitor.isLiteVfx() ? 2 : 3);
+        for (let i = copies; i >= 1; i--) {
+            const ox = this.x - dir * i * 9;
+            SpriteManager.drawSprite(ctx, frame, ox, feetY, {
+                pixelSize, flip, palette: spritePalette,
+                tint: '#9fd4ff', alpha: 0.16 * i / copies,
+            });
+        }
+    }
+
+    // Icy dodge/roll aura signalling the Hero's invulnerability window — a clean
+    // twin ring (soft icy halo + crisp white-blue inner) instead of glow spam.
     drawDodgeAura(ctx) {
         const pct = this.iFrames / this.iFrameDuration; // 1 -> 0
+        const r = this.radius + 8 + (1 - pct) * 10;     // expands slightly as it fades (unchanged feel)
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = `rgba(120, 240, 255, ${0.25 + 0.5 * pct})`;
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = 'rgba(120, 240, 255, 0.8)';
+        // soft icy-blue halo
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(150, 214, 255, ${0.18 + 0.32 * pct})`;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(120, 205, 255, 0.7)';
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius + 8 + (1 - pct) * 10, 0, Math.PI * 2);
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+        // crisp white-blue inner ring
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = `rgba(226, 246, 255, ${0.40 + 0.40 * pct})`;
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = 'rgba(200, 235, 255, 0.8)';
+        ctx.beginPath();
+        ctx.arc(0, 0, r - 4, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
     }
@@ -1317,20 +1368,29 @@ export class Enemy {
         ctx.restore();
     }
 
-    // 4. Downward chevron shock under the Hero during the pogo dive.
+    // 4. Downward light-chevron shock under the Hero during the pogo dive —
+    //    a crisp icy chevron with a white-hot core (clean, not muddy).
     drawPogoStrike(ctx) {
         if (!this.attackHitbox.isActive) return;
         const y = this.y + POGO.REACH_DOWN;
+        const w = POGO.WIDTH / 2;
         ctx.save();
         ctx.translate(this.x, y);
-        ctx.globalAlpha = 0.8;
-        ctx.strokeStyle = '#bfe6ff';
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = '#7fc2ff';
-        ctx.lineWidth = 4;
-        const w = POGO.WIDTH / 2;
+        // outer icy chevron
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = 'rgba(150, 214, 255, 0.9)';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(120, 205, 255, 0.8)';
+        ctx.lineWidth = 5;
         ctx.beginPath();
-        ctx.moveTo(-w, -6); ctx.lineTo(0, 10); ctx.lineTo(w, -6);
+        ctx.moveTo(-w, -8); ctx.lineTo(0, 12); ctx.lineTo(w, -8);
+        ctx.stroke();
+        // white-hot inner chevron
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.shadowBlur = 5;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-w + 3, -6); ctx.lineTo(0, 9); ctx.lineTo(w - 3, -6);
         ctx.stroke();
         ctx.restore();
     }
@@ -1356,8 +1416,8 @@ export class Enemy {
     }
 
     // 2. Light-wave projectiles — rendered with the procedural Holy Light Wave
-    //    (SpriteManager.drawLightWave): a massive golden crescent slash per
-    //    waveType (1 diagonal, 2 vertical, 3 X-cross). Travel direction is read
+    //    (SpriteManager.drawLightWave): a massive cool-white / icy-blue crescent
+    //    slash per waveType (1 diagonal, 2 vertical, 3 X-cross). Travel direction is read
     //    from velocityX's sign (waves carry no explicit facing); alpha fades the
     //    slash over its lifetime. Rendering ONLY — speeds / damage / hitbox sizes
     //    are untouched.

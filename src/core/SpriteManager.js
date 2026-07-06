@@ -1015,9 +1015,11 @@ export class SpriteManager {
      *
      * The blade is a sharp, fat-bellied crescent moon traced with quadratic/bezier
      * curves (pointed cusps, thick belly, hooked like the reference). It is built
-     * up in concentric glow layers under heavy golden shadowBlur:
-     *     soft gold aura -> thick gold body (+ glowing gold stroke)
-     *                    -> pale gold -> blinding white-hot core -> searing centerline
+     * up in concentric glow layers under heavy icy-blue shadowBlur — the hero's
+     * "cold sanctity" holy-light palette (cool white / pale + icy blue, with only
+     * a subtle gold spark accent):
+     *     soft icy-blue aura -> pale-blue body (+ glowing icy stroke)
+     *                        -> pale ice -> blinding white-hot core -> searing centerline
      * then dressed with motion-smear ghosts, trailing "speed" slashes peeling off
      * the back tip, and energy sparks flying along the edge.
      *
@@ -1130,49 +1132,49 @@ export class SpriteManager {
                 // (a 1.55x-scaled full-blade fill); the gold body + white core below
                 // still carry the blade's shape and readability.
                 ctx.shadowBlur  = LITE ? 16 : 40;                    // <- pushed to the max (30-40)
-                ctx.shadowColor = `rgba(255, 205, 70, ${0.95 * flick})`;
-                ctx.fillStyle   = `rgba(255, 198, 72, ${0.34 * flick})`;
+                ctx.shadowColor = `rgba(120, 205, 255, ${0.95 * flick})`;
+                ctx.fillStyle   = `rgba(150, 214, 255, ${0.34 * flick})`;
                 smoothClosed(cr.outline(1.55));
                 ctx.fill();
             }
 
-            // (b) Thick gold BODY of the blade.
+            // (b) Thick pale-blue BODY of the blade (cold sanctity).
             ctx.shadowBlur  = ghost ? (LITE ? 8 : 16) : (PERF ? 6 : (LITE ? 14 : 34));
-            ctx.shadowColor = 'rgba(255, 200, 60, 0.95)';
-            ctx.fillStyle   = ghost ? 'rgba(255, 210, 90, 0.50)' : 'rgba(255, 216, 96, 0.96)';
+            ctx.shadowColor = 'rgba(110, 195, 255, 0.95)';
+            ctx.fillStyle   = ghost ? 'rgba(190, 230, 255, 0.50)' : 'rgba(176, 226, 255, 0.96)';
             smoothClosed(cr.outline(1.0));
             ctx.fill();
 
             if (!ghost && !LITE) {
-                // (b2) Intense, thick golden outer STROKE around the body.
+                // (b2) Intense, thick icy-blue outer STROKE around the body.
                 // Lite drops this duplicate glow layer; the body fill above +
-                // the amber rim below keep the same blade outline.
+                // the cool rim below keep the same blade outline.
                 ctx.shadowBlur  = 32;
-                ctx.shadowColor = 'rgba(255, 196, 56, 0.95)';
-                ctx.strokeStyle = 'rgba(255, 208, 80, 0.90)';
+                ctx.shadowColor = 'rgba(120, 205, 255, 0.95)';
+                ctx.strokeStyle = 'rgba(155, 220, 255, 0.90)';
                 ctx.lineWidth   = Math.max(1.5, size * 0.016);
                 smoothClosed(cr.outline(1.0));
                 ctx.stroke();
             }
 
-            // (c) Pale-gold mid layer (smooth white -> gold falloff).
+            // (c) Pale ice mid layer (smooth white -> icy-blue falloff).
             ctx.shadowBlur  = ghost ? (LITE ? 6 : 8) : (PERF ? 5 : (LITE ? 12 : 30));
-            ctx.shadowColor = 'rgba(255, 238, 168, 0.95)';
-            ctx.fillStyle   = 'rgba(255, 240, 172, 0.96)';
+            ctx.shadowColor = 'rgba(214, 240, 255, 0.95)';
+            ctx.fillStyle   = 'rgba(220, 242, 255, 0.96)';
             smoothClosed(cr.outline(0.60));
             ctx.fill();
 
             // (d) Blinding WHITE-HOT core (thin inner ribbon).
             ctx.shadowBlur  = ghost ? (LITE ? 4 : 6) : (PERF ? 5 : (LITE ? 10 : 24));
-            ctx.shadowColor = 'rgba(255, 250, 214, 1)';
-            ctx.fillStyle   = 'rgba(255, 255, 250, 0.98)';
+            ctx.shadowColor = 'rgba(235, 248, 255, 1)';
+            ctx.fillStyle   = 'rgba(255, 255, 255, 0.98)';
             smoothClosed(cr.outline(0.30));
             ctx.fill();
 
             if (!ghost) {
-                // (e) Crisp amber rim — the darker "tearing" edge from the reference.
+                // (e) Crisp cool-blue rim — the darker "tearing" edge.
                 ctx.shadowBlur  = 0;
-                ctx.strokeStyle = 'rgba(230, 150, 28, 0.55)';
+                ctx.strokeStyle = 'rgba(70, 150, 235, 0.55)';
                 ctx.lineWidth   = Math.max(1, size * 0.006);
                 smoothClosed(cr.outline(1.0));
                 ctx.stroke();
@@ -1181,8 +1183,8 @@ export class SpriteManager {
                 ctx.beginPath();
                 cr.spine.forEach((p, s) => (s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
                 ctx.shadowBlur  = PERF ? 6 : (LITE ? 10 : 18);
-                ctx.shadowColor = 'rgba(255, 232, 150, 1)';
-                ctx.strokeStyle = 'rgba(255, 248, 206, 0.95)';
+                ctx.shadowColor = 'rgba(210, 240, 255, 1)';
+                ctx.strokeStyle = 'rgba(226, 246, 255, 0.95)';
                 ctx.lineWidth   = Math.max(1.5, size * 0.018);
                 ctx.stroke();
                 ctx.shadowBlur  = PERF ? 4 : (LITE ? 6 : 10);
@@ -1217,7 +1219,7 @@ export class SpriteManager {
 
         // 3) Trailing sharp "speed" slashes peeling off the back tip (tearing air).
         ctx.shadowBlur  = PERF ? 4 : (LITE ? 8 : 16);
-        ctx.shadowColor = 'rgba(255, 220, 110, 0.90)';
+        ctx.shadowColor = 'rgba(140, 205, 255, 0.90)';
         const back = main.tipBack;
         const ox = Math.cos(back.ang),               oy = Math.sin(back.ang);            // along the arc
         const nx = Math.cos(back.ang + Math.PI / 2), ny = Math.sin(back.ang + Math.PI / 2);
@@ -1226,7 +1228,7 @@ export class SpriteManager {
             const off = (i - 1.5) * size * 0.014;
             const sx  = back.x + nx * off, sy = back.y + ny * off;
             ctx.globalAlpha = baseGA * (0.50 - 0.10 * i) * flick;
-            ctx.strokeStyle = i % 2 ? 'rgba(255, 214, 96, 0.90)' : 'rgba(255, 250, 220, 0.95)';
+            ctx.strokeStyle = i % 2 ? 'rgba(150, 215, 255, 0.90)' : 'rgba(235, 248, 255, 0.95)';
             ctx.lineWidth   = Math.max(1, size * (0.012 - 0.002 * i));
             ctx.beginPath();
             ctx.moveTo(sx, sy);
@@ -1247,13 +1249,115 @@ export class SpriteManager {
             const r   = Rs + Wmax * (0.5 + 0.5 * env) + 0.05 * Rs * Math.sin(t * 6 + i * 1.3);
             const sx  = Math.cos(ang) * r, sy = Math.sin(ang) * r;
             ctx.globalAlpha = baseGA * (0.30 + 0.65 * env) * flick;
-            ctx.fillStyle   = i % 3 === 0 ? 'rgba(255, 255, 240, 1)' : 'rgba(255, 212, 92, 1)';
+            // Mostly icy-blue motes + white glints, with an occasional SUBTLE gold
+            // spark (the hero's holy-light warmth) so the family stays cold-sanctity.
+            ctx.fillStyle   = i % 4 === 0 ? 'rgba(255, 255, 255, 1)'
+                            : i % 4 === 2 ? 'rgba(232, 200, 110, 1)'
+                            :               'rgba(165, 220, 255, 1)';
             ctx.shadowColor = ctx.fillStyle;
             ctx.beginPath();
             ctx.arc(sx, sy, 1.4 + 2.4 * env, 0, Math.PI * 2);
             ctx.fill();
         }
 
+        ctx.restore();
+    }
+
+    /**
+     * drawHolySlash — the Hero's melee sword-arc, "cold sanctity" family.
+     *
+     * A clean, sharp, light-infused crescent that SWEEPS through its arc as the
+     * strike lands: `progress` (0..1, the active-window fraction) both wipes the
+     * blade into existence and fades/expands it, so it visually tracks the swing
+     * instead of just popping. Cool-white core over an icy-/pale-blue body with a
+     * disciplined thin rim — noble and knightly, never smoky or messy.
+     *
+     * PURELY COSMETIC: reach/size here only position the drawing; the real hitbox,
+     * damage and timing live in Enemy.js and are not read or changed.
+     *
+     * @param {number} x,y     world centre the blade sweeps around (the strike origin)
+     * @param {number} dir     +1 / -1 facing (mirrors the arc)
+     * @param {number} progress 0..1 active-window fraction (drives the wipe + fade)
+     * @param {object} [opts]  { reach, size, hue } hue: 0 quick slash .. 1 finisher (tints wider)
+     */
+    static drawHolySlash(ctx, x, y, dir = 1, progress = 0, opts = {}) {
+        const { reach = 26, size = 46, heavy = false } = opts;
+        const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+        if (p >= 1) return;
+        const LITE = isLiteVfx();
+        const PERF = isPerfVfx();
+        const d = dir >= 0 ? 1 : -1;
+
+        // The arc sweeps from a high wind-up angle down-and-forward; `p` reveals it.
+        const Rs    = size * 0.5;
+        const sweep = heavy ? 2.6 : 2.15;                 // finisher carves a wider arc
+        const csw   = sweep * (0.35 + 0.65 * p);          // grows as the swing completes
+        const rot   = -Math.PI * 0.30 + sweep * 0.5 * p;  // rotate down-forward through the swing
+        const Wmax  = size * (heavy ? 0.20 : 0.16);
+        const fade  = Math.sin(Math.PI * Math.min(1, p * 1.15)); // in fast, out gentle
+        const N     = PERF ? 10 : (LITE ? 14 : 20);
+
+        const a0 = rot - csw / 2, a1 = rot + csw / 2;
+        const spine = [];
+        for (let s = 0; s <= N; s++) {
+            const u = s / N, ang = a0 + (a1 - a0) * u;
+            spine.push({ ang, u, x: Math.cos(ang) * Rs, y: Math.sin(ang) * Rs });
+        }
+        const halfW = (u) => Math.max(0, Wmax * Math.pow(Math.sin(Math.PI * u), 0.6) * (1 + 0.3 * (u - 0.5)));
+        const outline = (k) => {
+            const pts = [];
+            for (let s = 0; s <= N; s++) { const q = spine[s], w = halfW(q.u) * k; pts.push({ x: q.x + Math.cos(q.ang) * w, y: q.y + Math.sin(q.ang) * w }); }
+            for (let s = N; s >= 0; s--) { const q = spine[s], w = halfW(q.u) * k; pts.push({ x: q.x - Math.cos(q.ang) * w, y: q.y - Math.sin(q.ang) * w }); }
+            return pts;
+        };
+        const trace = (pts) => {
+            const n = pts.length;
+            ctx.beginPath();
+            ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+            for (let i = 0; i < n; i++) { const c = pts[i], nx = pts[(i + 1) % n]; ctx.quadraticCurveTo(c.x, c.y, (c.x + nx.x) / 2, (c.y + nx.y) / 2); }
+            ctx.closePath();
+        };
+
+        ctx.save();
+        ctx.translate(x + d * reach * 0.4, y);
+        ctx.scale(d, 1);
+        ctx.globalAlpha = fade;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+        if (!PERF) {                                        // (a) soft icy aura
+            ctx.shadowBlur = LITE ? 12 : 24;
+            ctx.shadowColor = 'rgba(120, 205, 255, 0.85)';
+            ctx.fillStyle = 'rgba(150, 214, 255, 0.28)';
+            trace(outline(1.5)); ctx.fill();
+        }
+        // (b) pale-blue body
+        ctx.shadowBlur = PERF ? 4 : (LITE ? 10 : 20);
+        ctx.shadowColor = 'rgba(120, 200, 255, 0.9)';
+        ctx.fillStyle = 'rgba(182, 228, 255, 0.95)';
+        trace(outline(1.0)); ctx.fill();
+        // (c) white-hot core ribbon
+        ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 14);
+        ctx.shadowColor = 'rgba(235, 248, 255, 1)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+        trace(outline(0.34)); ctx.fill();
+        // (d) crisp cool rim + a searing centerline (skipped on perf tier)
+        if (!PERF) {
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(70, 150, 235, 0.5)';
+            ctx.lineWidth = Math.max(1, size * 0.02);
+            trace(outline(1.0)); ctx.stroke();
+            ctx.beginPath();
+            spine.forEach((q, s) => (s ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+            ctx.shadowBlur = LITE ? 6 : 12; ctx.shadowColor = 'rgba(210, 240, 255, 1)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.lineWidth = Math.max(1, size * 0.014);
+            ctx.stroke();
+            // a lone subtle gold glint riding the leading tip
+            const tip = spine[N];
+            ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(232, 200, 110, 1)';
+            ctx.fillStyle = 'rgba(232, 200, 110, 0.9)';
+            ctx.beginPath(); ctx.arc(tip.x, tip.y, Math.max(1.5, size * 0.03), 0, Math.PI * 2); ctx.fill();
+        }
         ctx.restore();
     }
 

@@ -20,6 +20,7 @@ const { app, BrowserWindow, Menu, protocol } = require('electron');
 const path = require('path');
 const fsp = require('fs').promises;
 const { buildDevMenu } = require('./devMenu');
+const { initAutoUpdate } = require('./updater');
 
 // When set (electron:dev), load this dev server. When unset, we're production
 // and load the bundled app:// URL below.
@@ -156,6 +157,8 @@ app.whenReady().then(() => {
     // app:// there); required in production so app://bundle/... resolves.
     protocol.handle(APP_SCHEME, handleAppRequest);
     createWindow();
+    // No-op unless packaged; getter keeps targeting the current window if recreated.
+    initAutoUpdate(() => mainWindow);
 });
 
 app.on('window-all-closed', () => {

@@ -1,0 +1,36 @@
+name: Release (Windows)
+
+# Builds the Windows NSIS installer and publishes the auto-update artifacts
+# (latest.yml + ReverseBossGame-Setup-<version>.exe + .blockmap) to a GitHub
+# release. electron-builder reads the version from package.json and targets tag
+# v<version> as a DRAFT release, so nothing goes public until you review it and
+# click Publish. Portable exe is intentionally NOT built here (not needed for
+# auto-update); see AUTO_UPDATE.md.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # required for electron-builder to create the release and upload assets
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build and publish (draft release)
+        run: npm run electron:publish
+        env:
+          # Actions-provided token; never hardcoded. Scoped by the permissions block above.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -24,19 +24,30 @@ npm version patch   # 1.0.0 -> 1.0.1  (also: minor / major)
 
 ## 2. Publish a release
 
-Set a GitHub token with `repo` scope **in the environment only** (never in code):
+Preferred: **GitHub Actions** (no local Windows build, no personal token). The
+[`Release (Windows)`](.github/workflows/release.yml) workflow builds the NSIS
+installer and publishes the auto-update artifacts to a **draft** release tagged
+`v<version>`. Run it either way:
+
+- **Manually:** Actions tab → *Release (Windows)* → *Run workflow*.
+- **By tag:** push a tag matching the `package.json` version, e.g.
+  `git tag v1.0.1 && git push origin v1.0.1`.
+
+It uses the built-in `secrets.GITHUB_TOKEN` (as `GH_TOKEN`) with `contents:
+write` — no secret to configure. The tag must match `package.json`'s version, since
+electron-builder derives the release version from there, not from the tag.
+
+Local alternative (needs a personal token with `repo` scope, **env only**):
 
 ```powershell
 $env:GH_TOKEN = "<your_personal_access_token>"
 npm run electron:publish
 ```
 
-This builds the NSIS installer + update metadata and uploads them to a **draft**
-GitHub release for the current version. Open the release on GitHub and click
-**Publish**. Once public, running clients pick it up on their next launch.
-
-`GH_TOKEN` is used **only** by electron-builder during publish. It is never read
-by the app at runtime and is never bundled.
+Both paths create a **draft** release for the current version. Open it on GitHub
+and click **Publish**; running clients then pick it up on their next launch. The
+workflow does not build the portable exe — it isn't needed for auto-update. `GH_TOKEN`
+is used **only** during publish; it is never read by the app at runtime or bundled.
 
 ## 3. Artifacts uploaded to the release
 

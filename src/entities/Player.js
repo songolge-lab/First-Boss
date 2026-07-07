@@ -826,6 +826,9 @@ export class Player {
 
         const hpx = frame.length * pixelSize;
         const bodyCY = feetY - hpx * 0.5;                   // figure centre (FX anchor)
+        // Chest red-core anchor (a little above figure centre) — where the ground
+        // laser gathers + fires from. Render-only; used by the wand glow + beam draw.
+        this._chestY = bodyCY - hpx * 0.14;
 
         // Record a short position trail while dashing, then let it drain so the
         // streaks fade out instead of snapping off. Visual only.
@@ -913,15 +916,31 @@ export class Player {
         PerfMonitor.end('player sprite draw');
         this._spriteTopY = res ? res.originY : null;
 
+        // Boss sword crescent (approved 1.png ember-void slash) on the ACTIVE frames
+        // of the two sword hits (combo 1 = horizontal, 2 = spinning). Render-only:
+        // reads combat state + a cosmetic frame counter, changes no gameplay.
+        if ((this.comboStep === 1 || this.comboStep === 2) && this.attackHitbox && this.attackHitbox.isActive
+            && !PerfMonitor.shouldSkip('playerAura')) {
+            this._slashVfxFrame = (this._slashVfxFrame || 0) + 1;
+            const prog = Math.min(0.99, this._slashVfxFrame / 12);
+            SpriteManager.drawBossSlash(ctx, this.x + fxDir * hpx * 0.42, bodyCY, fxDir, prog, {
+                size: hpx * 0.95, heavy: this.comboStep === 2,
+            });
+        } else {
+            this._slashVfxFrame = 0;
+        }
+
         // CHARGED GROUND ATTACK: the wand orb brightens as the meter fills, then
         // flares blinding red the instant it's fully charged (the laser is ready).
         // Drawn OVER the sprite, anchored at the wand-tip ahead of the Boss.
         PerfMonitor.start('player charge aura');
         if (groundCharging && !PerfMonitor.shouldSkip('playerChargeAura')) {
+            // Gather the ground-laser charge ON the chest red core (centred), not at
+            // the sword/foot. Slight forward bias so it reads as aiming.
             SpriteManager.drawWandGlow(
                 ctx,
-                this.x + fxDir * hpx * 0.22,
-                bodyCY - hpx * 0.26,
+                this.x + fxDir * hpx * 0.06,
+                this._chestY,
                 this.chargeRatio,
                 { radius: hpx * 0.18 },
             );
@@ -971,9 +990,12 @@ export class Player {
             } else if (layer === 'over' && p.kind === 'laser') {
                 // The Laser box is centred half-a-length ahead, so back off
                 // halfWidth along facing to seat the beam muzzle on the Boss.
+                // VISUAL-ONLY: emit from the chest red core height (this._chestY),
+                // not the hitbox's physics-centre y — the hitbox is unchanged.
+                const beamY = this._chestY != null ? this._chestY : p.y;
                 PerfMonitor.start('player laser beam');
                 if (!PerfMonitor.shouldSkip('playerLaser')) {
-                    SpriteManager.drawLaserBeam(ctx, p.x - p.facing * p.halfWidth, p.y, p.facing, {
+                    SpriteManager.drawLaserBeam(ctx, p.x - p.facing * p.halfWidth, beamY, p.facing, {
                         length: p.width, thickness: p.height, progress: prog,
                     });
                 }

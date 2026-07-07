@@ -630,45 +630,31 @@ export class SpriteManager {
      * @param {object} opts { radius, time(ms), intensity }
      */
     static drawDashAura(ctx, cx, cy, dir = 1, opts = {}) {
-        const {
-            radius = 55,
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            intensity = 1,
-        } = opts;
-        const t = time / 1000;
-
+        const { radius = 55, intensity = 1 } = opts;
+        const E0 = '#6e0f1c', E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a', DK = '#1c1d28';
+        const PX = Math.max(2, Math.round(radius / 12));
+        const d = dir >= 0 ? 1 : -1;
         ctx.save();
-        ctx.translate(cx, cy);
-
-        // Tight crimson halo, stretched along the travel axis.
-        ctx.save();
-        ctx.scale(1.35, 0.80);
-        const halo = ctx.createRadialGradient(0, 0, radius * 0.10, 0, 0, radius);
-        halo.addColorStop(0.0, `rgba(255, 60, 50, ${0.55 * intensity})`);
-        halo.addColorStop(0.4, `rgba(200, 20, 30, ${0.35 * intensity})`);
-        halo.addColorStop(1.0, 'rgba(60, 0, 8, 0)');
-        ctx.fillStyle = halo;
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // Sparks whipping around the drill (counter to travel = sense of spin).
-        ctx.shadowBlur = 8;
-        const N = 14;
-        for (let i = 0; i < N; i++) {
-            const ang = -dir * (t * 9 + i * 0.9);
-            const orbit = radius * (0.35 + 0.30 * ((i * 3) % 5) / 5);
-            const x = Math.cos(ang) * orbit * 1.30;
-            const y = Math.sin(ang) * orbit * 0.70;
-            const a = 0.40 + 0.40 * (0.5 + 0.5 * Math.sin(t * 6 + i));
-            ctx.globalAlpha = a * intensity;
-            ctx.fillStyle = i % 3 === 0 ? 'rgba(255, 180, 120, 0.95)' : 'rgba(255, 50, 40, 0.95)';
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath();
-            ctx.arc(x, y, 1.6 + (i % 3), 0, Math.PI * 2);
-            ctx.fill();
-        }
+        ctx.translate(Math.round(cx), Math.round(cy));
+        ctx.scale(d, 1);
+        ctx.shadowBlur = 0;
+        const baseGA = ctx.globalAlpha * Math.min(1.2, intensity);
+        // sampler R2C0: 3 stepped dark afterimages (35/60/100%) trailing behind travel
+        ctx.globalAlpha = baseGA * 0.35; ctx.fillStyle = DK; ctx.fillRect(-9 * PX, -7 * PX, 4 * PX, 14 * PX);
+        ctx.globalAlpha = baseGA * 0.6;  ctx.fillStyle = DK; ctx.fillRect(-4 * PX, -7 * PX, 4 * PX, 14 * PX);
+        ctx.globalAlpha = baseGA;        ctx.fillStyle = DK; ctx.fillRect(1 * PX, -8 * PX, 5 * PX, 16 * PX);
+        ctx.fillStyle = E1; ctx.fillRect(3 * PX, -4 * PX, PX, 8 * PX);          // red core line
+        // ember horizontal streaks (E0/E1/E2 at stepped rows)
+        ctx.globalAlpha = baseGA * 0.8;
+        ctx.fillStyle = E0; ctx.fillRect(-13 * PX, -8 * PX, 14 * PX, PX);
+        ctx.fillStyle = E1; ctx.fillRect(-14 * PX, -4 * PX, 18 * PX, PX);
+        ctx.fillStyle = E2; ctx.fillRect(-12 * PX, 0, 22 * PX, PX);
+        ctx.fillStyle = E1; ctx.fillRect(-14 * PX, 4 * PX, 18 * PX, PX);
+        ctx.fillStyle = E0; ctx.fillRect(-13 * PX, 8 * PX, 14 * PX, PX);
+        ctx.globalAlpha = baseGA;
+        // hot leading tip (E3/E2/E3 arrow)
+        ctx.fillStyle = E3; ctx.fillRect(7 * PX, -1 * PX, 6 * PX, PX); ctx.fillRect(7 * PX, 1 * PX, 6 * PX, PX);
+        ctx.fillStyle = E2; ctx.fillRect(5 * PX, 0, 8 * PX, PX);
         ctx.restore();
     }
 
@@ -683,59 +669,23 @@ export class SpriteManager {
      */
     static drawSpeedStreaks(ctx, trail, opts = {}) {
         if (!trail || trail.length < 2) return;
-        const {
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            spread = 22,
-        } = opts;
-        const n = trail.length;
-        const head = trail[n - 1];
-        const tail = trail[0];
-        const dx = head.x - tail.x, dy = head.y - tail.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len, ny = dx / len;      // perpendicular, for fanning
-        const dir = Math.sign(dx) || 1;
-
+        const { spread = 22 } = opts;
+        const E1 = '#a8182a', E3 = '#ff5a4a';
+        const n = trail.length, head = trail[n - 1], tail = trail[0];
+        const dx = head.x - tail.x, dy = head.y - tail.y, len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        const PX = 2;
         ctx.save();
-        ctx.lineCap = 'round';
-
-        // Parallel streak lines fanned across the body height.
-        const lanes = [-0.7, -0.3, 0.0, 0.35, 0.75];
+        ctx.shadowBlur = 0;
+        const lanes = [-0.7, -0.35, 0, 0.35, 0.7];
+        const baseGA = ctx.globalAlpha;
         for (let L = 0; L < lanes.length; L++) {
-            const off = lanes[L] * spread;
-            ctx.beginPath();
-            for (let i = 0; i < n; i++) {
-                const x = trail[i].x + nx * off;
-                const y = trail[i].y + ny * off;
-                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            const off = lanes[L] * spread, col = (L % 2) ? E3 : E1;
+            for (let i = 1; i < n; i++) {
+                ctx.globalAlpha = baseGA * (i / n) * 0.7;
+                ctx.fillStyle = col;
+                ctx.fillRect(Math.round(trail[i].x + nx * off) - PX, Math.round(trail[i].y + ny * off), PX * 2, PX);
             }
-            const crimson = L % 2 === 0;
-            const grad = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y);
-            grad.addColorStop(0, 'rgba(255, 40, 40, 0)');
-            grad.addColorStop(1, crimson ? 'rgba(255, 80, 70, 0.55)' : 'rgba(255, 200, 180, 0.50)');
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = crimson ? 3 : 1.5;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = 'rgba(255, 60, 50, 0.7)';
-            ctx.stroke();
-        }
-
-        // Short wind dashes streaming off the back (behind the head).
-        const t = time / 1000;
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = 'rgba(255, 90, 70, 0.6)';
-        for (let i = 0; i < 6; i++) {
-            const back = (i + ((t * 6) % 1)) * 10;
-            const bx = head.x - dir * (10 + back);
-            const off = (((i * 37) % 100) / 100 - 0.5) * spread * 1.4;
-            const by = head.y + ny * off;
-            const a = Math.max(0, 0.5 - back / 90);
-            ctx.globalAlpha = a;
-            ctx.strokeStyle = i % 2 ? 'rgba(255, 210, 190, 0.8)' : 'rgba(255, 70, 55, 0.85)';
-            ctx.lineWidth = i % 2 ? 1 : 2;
-            ctx.beginPath();
-            ctx.moveTo(bx, by);
-            ctx.lineTo(bx - dir * 9, by);
-            ctx.stroke();
         }
         ctx.restore();
     }
@@ -749,39 +699,25 @@ export class SpriteManager {
      * @param {object} opts { radius, time(ms), intensity }
      */
     static drawVoidEdge(ctx, x, y, dir = 1, opts = {}) {
-        const {
-            radius = 26,
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            intensity = 1,
-        } = opts;
-        const t = time / 1000;
-        const LITE = isLiteVfx();
+        const { radius = 20, time = (typeof performance !== 'undefined' ? performance.now() : Date.now()), intensity = 1 } = opts;
         const PERF = isPerfVfx();
-
+        const SMK = '#1a1420', E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a';
+        const PX = Math.max(2, Math.round(radius / 8));
+        const frame = Math.floor(time / 80);
+        const d = dir >= 0 ? 1 : -1;
         ctx.save();
-        ctx.translate(x, y);
-        const glow = ctx.createRadialGradient(0, 0, 1, 0, 0, radius);
-        glow.addColorStop(0.0, `rgba(150, 90, 255, ${0.50 * intensity})`);
-        glow.addColorStop(0.5, `rgba(90, 40, 180, ${0.28 * intensity})`);
-        glow.addColorStop(1.0, 'rgba(20, 6, 40, 0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.shadowBlur = LITE ? 0 : 8;
-        for (let i = 0; i < (PERF ? 2 : (LITE ? 3 : 6)); i++) {
-            const ang = dir * (t * 3 + i * 1.05);
-            const orbit = radius * (0.30 + 0.40 * ((i * 3) % 4) / 4);
-            const px = Math.cos(ang) * orbit;
-            const py = Math.sin(ang) * orbit * 0.80;
-            const a = 0.35 + 0.40 * (0.5 + 0.5 * Math.sin(t * 4 + i));
-            ctx.globalAlpha = a * intensity;
-            ctx.fillStyle = i % 4 === 0 ? 'rgba(255, 60, 70, 0.9)' : 'rgba(180, 110, 255, 0.9)';
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath();
-            ctx.arc(px, py, 1.4 + (i % 3) * 0.8, 0, Math.PI * 2);
-            ctx.fill();
+        ctx.translate(Math.round(x), Math.round(y));
+        ctx.globalAlpha *= Math.min(1, intensity);
+        ctx.shadowBlur = 0;
+        // small ember-void glint riding the blade: hot core + smoke rim + orbiting embers
+        ctx.fillStyle = E3; ctx.fillRect(-PX, -PX, PX, PX);
+        ctx.fillStyle = E2; ctx.fillRect(0, -PX, PX, PX); ctx.fillRect(-PX, 0, PX, PX);
+        ctx.fillStyle = SMK; ctx.fillRect(0, 0, PX, PX);
+        const pts = [[2, -1], [1, 2], [-2, 1]];
+        for (let i = 0; i < (PERF ? 1 : 3); i++) {
+            const [ox, oy] = pts[(i + frame) % 3];
+            ctx.fillStyle = (i % 2) ? E1 : E3;
+            ctx.fillRect(ox * PX * d, oy * PX, PX, PX);
         }
         ctx.restore();
     }
@@ -1004,360 +940,384 @@ export class SpriteManager {
      * rendered in its flattened ground mode. Kept so call sites (Player.js) read
      * by intent; it adds no new logic - just forwards to drawExplosion().
      */
+    // Boss AERIAL-SLAM ground impact = the approved 1.png landing dust (sampler R2C3),
+    // brought to slam scale: several chunky stone-dust clusters that burst from the
+    // centre and settle outward across the impact width, staggered so it reads as one
+    // wide ground impact. 100% pixel-art (delegates to the exact R2C3 drawLandingDust).
+    // Cosmetic only — the shockwave hitbox / Fear-Strike gameplay is untouched.
     static drawShockwave(ctx, gx, gy, opts = {}) {
-        return SpriteManager.drawExplosion(ctx, gx, gy, { radius: 110, ...opts, flat: true });
+        const { progress = 0, radius = 110 } = opts;
+        const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+        // [offsetX (fraction of radius), start-delay]: centre first, flanks spread out.
+        // px=2 keeps the exact 1.png chunkiness; wide spacing reads as distinct puffs.
+        let clusters = [
+            [0, 0.00], [-0.55, 0.08], [0.55, 0.05], [-1.0, 0.17], [1.0, 0.13],
+        ];
+        if (isPerfVfx()) clusters = clusters.slice(0, 3);
+        else if (isLiteVfx()) clusters = clusters.slice(0, 4);
+        for (const [fx, delay] of clusters) {
+            if (p <= delay) continue;
+            const cp = (p - delay) / (1 - delay);              // remap so this cluster runs 0..1
+            SpriteManager.drawLandingDust(ctx, Math.round(gx + fx * radius), gy, { progress: cp, px: 2 });
+        }
+    }
+
+    // ===================================================================
+    //  HERO "COLD SANCTITY" VFX — TRUE PIXEL ART
+    //  Source of truth: the approved sampler tools/redesign/vfx_gen.js (1.png).
+    //  Everything below is drawn as discrete hard-edged PX blocks (fillRect ONLY:
+    //  no shadowBlur, no bezier curves, no soft alpha washes) so it reads as
+    //  authentic pixel art exactly like the sheet. Ramp:
+    //    core #eaf6ff · body #b8ecff · edge #7fd4ff · rim #4a7a9e · gold tip #c9962e
+    //  Grammar: gather -> crisp crescent/strike -> shard + sparkle dissolve.
+    // ===================================================================
+
+    /**
+     * The Hero's HOLY LIGHT WAVE — a crisp PIXEL-ART crescent of focused light
+     * (approved "cold sanctity" sheet). Built entirely from discrete PX blocks:
+     * white core #eaf6ff -> body #b8ecff -> cold edge #7fd4ff -> rim #4a7a9e, tips
+     * tapering to single pixels. NO blur, NO curves, NO glow-painted arc.
+     *
+     * Lifecycle from opts.life (0..1 = the projectile's existing lifeProgress,
+     * read-only): gather (converging motes) -> crescent (wave body, 1px marching
+     * edge-shimmer) -> dissolve (breaks into drifting shards + sparkles). Keeps the
+     * diagonal / vertical / X identities, size, life, hitbox and timing.
+     *
+     * waveType: 1 diagonal · 2 vertical · 3 X-cross.  facing +1/-1 mirrors it.
+     */
+    static drawLightWave(ctx, x, y, waveType = 1, facing = 1, opts = {}) {
+        const { alpha = 1, size = 140, life = 0.5 } = opts;
+        if (alpha <= 0 || size <= 0) return;
+        const dir = facing >= 0 ? 1 : -1;
+        const PX = Math.max(2, Math.min(6, Math.round(size / 30)));   // sampler crescent ~29px tall -> ~size
+        ctx.save();
+        ctx.translate(Math.round(x), Math.round(y));
+        ctx.globalAlpha *= alpha;
+        ctx.shadowBlur = 0;                                            // hard pixels only
+        // Direct port of the approved sampler phases (tools/redesign/vfx_gen.js R1):
+        // gather cell -> crescent cell -> dissolve cell (stepped, no soft tween).
+        if (life < 0.07) {
+            SpriteManager._paintCells(ctx, SpriteManager._heroGatherCells(), PX, dir, false);
+        } else if (life > 0.78) {
+            SpriteManager._paintCells(ctx, SpriteManager._heroDissolveCells(), PX, dir, false);
+        } else {
+            SpriteManager._paintCells(ctx, SpriteManager._heroCrescentCells(dir, waveType === 3), PX, 1, false);
+        }
+        ctx.restore();
+    }
+
+    // ---- EXACT ports of the approved 1.png hero cells (tools/redesign/vfx_gen.js) ----
+    // Hero light ramp: L0 #4a7a9e (back edge) · L1 #7fd4ff (inner) · L2 #b8ecff (body)
+    // · L3 #eaf6ff (white core) · GLD #c9962e.  Every cell below is the sheet's exact
+    // pixel layout, returned centred so it can be scaled by PX and mirrored by travel.
+
+    // The sheet crescent() ported verbatim. `travelDir` orients the convex/white-core
+    // edge toward travel: travelDir>=0 -> bulge right (sheet dir=-1), else bulge left
+    // (sheet dir=+1). `doubleEdge` = the finisher's extra outer edge.
+    static _heroCrescentCells(travelDir, doubleEdge) {
+        const L0 = '#4a7a9e', L1 = '#7fd4ff', L2 = '#b8ecff', L3 = '#eaf6ff';
+        const dir = travelDir >= 0 ? -1 : 1;
+        const raw = [];
+        for (let y = 6; y <= 34; y++) {
+            const s = Math.sin((y - 6) / 28 * Math.PI);
+            const xo = 20 - dir * Math.round(14 * s);
+            const wdt = Math.max(1, Math.round(1 + 4 * s));
+            if (dir < 0) {
+                raw.push([xo - 1, y, L0]);
+                for (let k = 0; k < Math.max(1, wdt - 1); k++) raw.push([xo + k, y, L2]);
+                raw.push([xo + wdt - 1, y, L1]);
+                if (y >= 16 && y <= 24) raw.push([xo + wdt, y, L3]);
+                if (doubleEdge) raw.push([xo - 2, y, L0]);
+            } else {
+                raw.push([xo + 1, y, L0]);
+                for (let k = 0; k < Math.max(1, wdt - 1); k++) raw.push([xo - wdt + 2 + k, y, L2]);
+                raw.push([xo - wdt + 1, y, L1]);
+                if (y >= 16 && y <= 24) raw.push([xo - wdt, y, L3]);
+                if (doubleEdge) raw.push([xo + 2, y, L0]);
+            }
+        }
+        let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+        for (const [px, py] of raw) { if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py; }
+        const cx = (minx + maxx) >> 1, cy = (miny + maxy) >> 1;
+        return raw.map(([px, py, c]) => ({ gx: px - cx, gy: py - cy, color: c }));
+    }
+
+    // Sheet R1C0 GATHER (verbatim): 2x2 white core, 4 icy corners, 6 pale + 4 steel motes.
+    static _heroGatherCells() {
+        const L0 = '#4a7a9e', L1 = '#7fd4ff', L2 = '#b8ecff', L3 = '#eaf6ff';
+        const c = [], push = (x, y, col) => c.push({ gx: x - 20, gy: y - 20, color: col });
+        push(19, 19, L3); push(20, 19, L3); push(19, 20, L3); push(20, 20, L3);
+        push(18, 18, L1); push(21, 18, L1); push(18, 21, L1); push(21, 21, L1);
+        [[13, 13], [26, 12], [12, 26], [27, 27], [20, 10], [20, 30]].forEach(([x, y]) => push(x, y, L2));
+        [[15, 15], [24, 14], [14, 24], [25, 25]].forEach(([x, y]) => push(x, y, L0));
+        return c;
+    }
+
+    // Sheet R1C2 DISSOLVE (verbatim): vertical shard fragments + scattered motes.
+    static _heroDissolveCells() {
+        const L0 = '#4a7a9e', L1 = '#7fd4ff', L2 = '#b8ecff';
+        const c = [], cx = 22, cy = 20;
+        const seg = (x, y, h, col) => { for (let k = 0; k < h; k++) c.push({ gx: x - cx, gy: y + k - cy, color: col }); };
+        seg(26, 9, 4, L2); seg(28, 14, 3, L1); seg(30, 22, 4, L2); seg(28, 27, 3, L1); seg(26, 31, 2, L0);
+        [[22, 12], [20, 18], [23, 24], [21, 30], [16, 20], [25, 16]].forEach(([x, y]) => c.push({ gx: x - cx, gy: y - cy, color: L1 }));
+        [[18, 14], [17, 26], [24, 20]].forEach(([x, y]) => c.push({ gx: x - cx, gy: y - cy, color: L0 }));
+        c.push({ gx: 14 - cx, gy: 19 - cy, color: L2 });
+        return c;
+    }
+
+    // Paint a centred cell list as hard PX blocks. `mir` mirrors X by travel; `swap`
+    // rotates 90deg (pogo down-strike). Grid-snapped fillRect only — no blur/curves.
+    static _paintCells(ctx, cells, PX, mir = 1, swap = false) {
+        const baseGA = ctx.globalAlpha;
+        for (const { gx, gy, color, a } of cells) {
+            const ax = swap ? gy : gx * mir;
+            const ay = swap ? gx : gy;
+            if (a != null) ctx.globalAlpha = baseGA * a;
+            ctx.fillStyle = color;
+            ctx.fillRect(ax * PX, ay * PX, PX, PX);
+            if (a != null) ctx.globalAlpha = baseGA;
+        }
+    }
+
+    // ===================================================================
+    //  BOSS "EMBER-VOID" VFX — TRUE PIXEL ART (sampler vfx_gen.js row 0/2)
+    //  Ember ramp: SMK #1a1420 · UMB #14101c · E0 #6e0f1c · E1 #a8182a
+    //             · E2 #e0263a · E3 #ff5a4a.  Hard fillRect blocks only.
+    // ===================================================================
+
+    // Sampler crescent() with the boss layers [SMK, E1, E2, E3] (smoke outer edge,
+    // ember body, bright inner, hot molten core). Centred; travelDir orients the bulge.
+    static _bossCrescentCells(travelDir, doubleEdge) {
+        const SMK = '#1a1420', E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a';
+        const dir = travelDir >= 0 ? -1 : 1;
+        const raw = [];
+        for (let y = 6; y <= 34; y++) {
+            const s = Math.sin((y - 6) / 28 * Math.PI);
+            const xo = 20 - dir * Math.round(14 * s);
+            const wdt = Math.max(1, Math.round(1 + 4 * s));
+            if (dir < 0) {
+                raw.push([xo - 1, y, SMK]);
+                for (let k = 0; k < Math.max(1, wdt - 1); k++) raw.push([xo + k, y, E1]);
+                raw.push([xo + wdt - 1, y, E2]);
+                if (y >= 16 && y <= 24) raw.push([xo + wdt, y, E3]);
+                if (doubleEdge) raw.push([xo - 2, y, SMK]);
+            } else {
+                raw.push([xo + 1, y, SMK]);
+                for (let k = 0; k < Math.max(1, wdt - 1); k++) raw.push([xo - wdt + 2 + k, y, E1]);
+                raw.push([xo - wdt + 1, y, E2]);
+                if (y >= 16 && y <= 24) raw.push([xo - wdt, y, E3]);
+                if (doubleEdge) raw.push([xo + 2, y, SMK]);
+            }
+        }
+        let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+        for (const [px, py] of raw) { if (px < minx) minx = px; if (px > maxx) maxx = px; if (py < miny) miny = py; if (py > maxy) maxy = py; }
+        const cx = (minx + maxx) >> 1, cy = (miny + maxy) >> 1;
+        return raw.map(([px, py, c]) => ({ gx: px - cx, gy: py - cy, color: c }));
+    }
+
+    // Sampler R0C0 boss-slash ANTICIPATION (verbatim): dark ember verticals + E1 blade
+    // + E1/E0 pairs + faint core = ember fragments gathering before the strike.
+    static _bossGatherCells() {
+        const E0 = '#6e0f1c', E1 = '#a8182a';
+        const c = [], cx = 16, cy = 20;
+        const seg = (x, y, h, col, a) => { for (let k = 0; k < h; k++) c.push({ gx: x - cx, gy: y + k - cy, color: col, a }); };
+        [[12, 10], [8, 16], [7, 20], [8, 24], [12, 30]].forEach(([x, y]) => seg(x, y, 2, E0));
+        seg(9, 18, 4, E1);
+        [[24, 12], [26, 20], [24, 28]].forEach(([x, y]) => { c.push({ gx: x - cx, gy: y - cy, color: E1 }); c.push({ gx: x + 2 - cx, gy: y - cy, color: E0 }); });
+        for (let dx = 0; dx < 2; dx++) for (let dy = 0; dy < 2; dy++) c.push({ gx: 16 + dx - cx, gy: 19 + dy - cy, color: E0, a: 0.6 });
+        return c;
+    }
+
+    // Sampler R0C2 boss-slash FADE (verbatim): ember shard fragments + smoke puffs.
+    static _bossFadeCells() {
+        const E0 = '#6e0f1c', E1 = '#a8182a', SMK = '#1a1420';
+        const c = [], cx = 14, cy = 20;
+        const seg = (x, y, h, col, a) => { for (let k = 0; k < h; k++) c.push({ gx: x - cx, gy: y + k - cy, color: col, a }); };
+        seg(12, 8, 3, E1); seg(10, 12, 3, E0); seg(8, 22, 4, E1); seg(10, 27, 3, E0); seg(13, 31, 2, E0);
+        const puff = (x, y, a) => { for (let dx = 0; dx < 2; dx++) for (let dy = 0; dy < 2; dy++) c.push({ gx: x + dx - cx, gy: y + dy - cy, color: SMK, a }); };
+        puff(6, 14); puff(5, 26); puff(11, 18, 0.7);
+        [[16, 10], [18, 16], [15, 22], [18, 28], [16, 33], [22, 20]].forEach(([x, y]) => c.push({ gx: x - cx, gy: y - cy, color: E0 }));
+        c.push({ gx: 20 - cx, gy: 13 - cy, color: E1 }); c.push({ gx: 21 - cx, gy: 26 - cy, color: E1 });
+        return c;
     }
 
     /**
-     * The Hero's HOLY LIGHT WAVE — a divine, white-hot golden crescent slash that
-     * looks like it is tearing the air open ("Holy Lightning"). Fully procedural,
-     * self-positioning at (x, y) and self-animating off opts.time.
-     *
-     * The blade is a sharp, fat-bellied crescent moon traced with quadratic/bezier
-     * curves (pointed cusps, thick belly, hooked like the reference). It is built
-     * up in concentric glow layers under heavy icy-blue shadowBlur — the hero's
-     * "cold sanctity" holy-light palette (cool white / pale + icy blue, with only
-     * a subtle gold spark accent):
-     *     soft icy-blue aura -> pale-blue body (+ glowing icy stroke)
-     *                        -> pale ice -> blinding white-hot core -> searing centerline
-     * then dressed with motion-smear ghosts, trailing "speed" slashes peeling off
-     * the back tip, and energy sparks flying along the edge.
-     *
-     * SCALE: sized to MATCH the ~144px Boss (default size = 140). The solid blade
-     * spans about one Boss-height tip-to-tip — menacing and proportionally matched,
-     * never bigger than the Boss. Only the soft glow bleeds slightly past, which is
-     * exactly what a holy glow should do.  (If your call site still passes
-     * opts.size = 210 from the old version, drop it or set it to ~140.)
-     *
-     * waveType:  1 = powerful DIAGONAL slash
-     *            2 = powerful VERTICAL / upright slash
-     *            3 = devastating X-CROSS  (two intersecting crescents)
-     * facing:    +1 / -1  mirrors the whole slash along travel direction.
-     *
-     * NOTE: `opts` is kept optional so existing call sites (which pass time/alpha
-     * for the lifetime animation + fade) still work — calling it as
-     * drawLightWave(ctx, x, y, waveType, facing) alone is also valid.
-     *
-     * @param {CanvasRenderingContext2D} ctx
-     * @param {number} x
-     * @param {number} y          world position (slash centre)
-     * @param {number} waveType   1 | 2 | 3
-     * @param {number} facing     +1 / -1 (mirrors the slash)
-     * @param {object} [opts]      { time(ms), alpha, size }  alpha fades by lifetime
+     * drawBossSlash — the Boss's sword crescent, built from the approved sheet boss
+     * slash (R0C0/C1/C2). `progress` (0..1 over the existing active frames) steps
+     * gather -> smoke-rimmed ember crescent -> shard fade. Cosmetic only.
      */
-    static drawLightWave(ctx, x, y, waveType = 1, facing = 1, opts = {}) {
-        const {
-            time  = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            alpha = 1,
-            size  = 140,                 // ~= Boss height (24 * BOSS_PIXEL = 144): matched, not bigger
-        } = opts;
-        if (alpha <= 0 || size <= 0) return;
-
-        const t   = time / 1000;
-        const LITE = isLiteVfx();
-        const PERF = isPerfVfx();
-        const dir = facing >= 0 ? 1 : -1;
-        // High-frequency searing flicker -> drives brightness + a little thickness pulse.
-        const flick = 0.82 + 0.18 * Math.sin(t * 22 + waveType * 1.9);
-
-        // --- Crescent geometry (local frame, rotated per type below) -------------
-        // Rs = radius of the spine arc, so the blade spans ~size px tip-to-tip.
-        const Rs    = size * 0.50;
-        const sweep = waveType === 2 ? 2.70 : 2.85;                 // arc length (radians, ~155-163deg)
-        const Wmax  = size * (waveType === 3 ? 0.150 : waveType === 2 ? 0.165 : 0.175)
-                           * (0.90 + 0.14 * flick);                 // fattest half-width (pulses)
-        const N     = 26;                                           // spine samples -> bezier anchors
-
-        // Orientation per type, authored for dir = +1 (mirrored as a whole below).
-        const baseRot = waveType === 2 ? -Math.PI / 2 + 0.15        // upright / vertical slash
-                      : waveType === 3 ? -Math.PI * 0.62            // leading blade of the X
-                      :                  -Math.PI * 0.30;           // diagonal slash
-
+    static drawBossSlash(ctx, x, y, dir = 1, progress = 0, opts = {}) {
+        const { reach = 30, size = 150, heavy = false } = opts;
+        const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+        if (p >= 1) return;
+        const travelDir = dir >= 0 ? 1 : -1;
+        const PX = Math.max(2, Math.min(6, Math.round(size / 30)));
         ctx.save();
-        ctx.translate(x, y);
-        ctx.globalAlpha *= alpha;
-        const baseGA = ctx.globalAlpha;
-        ctx.scale(dir, 1);                       // mirror the whole slash by travel direction
-        ctx.lineCap  = 'round';
-        ctx.lineJoin = 'round';
-
-        // Trace a CLOSED outline smoothly through `pts` using quadratic curves
-        // (midpoint method) -> organic, sharp-tipped bezier edges.
-        const smoothClosed = (pts) => {
-            const n = pts.length;
-            ctx.beginPath();
-            ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
-            for (let i = 0; i < n; i++) {
-                const cur = pts[i], nxt = pts[(i + 1) % n];
-                ctx.quadraticCurveTo(cur.x, cur.y, (cur.x + nxt.x) / 2, (cur.y + nxt.y) / 2);
-            }
-            ctx.closePath();
-        };
-
-        // Build one crescent at rotation `rot`: spine samples + an outline()
-        // generator that scales half-width by `k` (for the concentric layers).
-        const buildCrescent = (rot) => {
-            const a0 = rot - sweep / 2, a1 = rot + sweep / 2;
-            const spine = [];
-            for (let s = 0; s <= N; s++) {
-                const u = s / N, ang = a0 + (a1 - a0) * u;
-                spine.push({ ang, u, x: Math.cos(ang) * Rs, y: Math.sin(ang) * Rs });
-            }
-            // 0 at both tips (sharp cusps), fat belly, biased toward the front tip
-            // for the hooked / comma silhouette of the reference image.
-            const halfW = (u) =>
-                Math.max(0, Wmax * Math.pow(Math.sin(Math.PI * u), 0.60) * (1 + 0.35 * (u - 0.5)));
-            const outline = (k) => {
-                const pts = [];
-                for (let s = 0; s <= N; s++) {                       // outer edge: back -> front
-                    const p = spine[s], w = halfW(p.u) * k;
-                    pts.push({ x: p.x + Math.cos(p.ang) * w, y: p.y + Math.sin(p.ang) * w });
-                }
-                for (let s = N; s >= 0; s--) {                       // inner edge: front -> back
-                    const p = spine[s], w = halfW(p.u) * k;
-                    pts.push({ x: p.x - Math.cos(p.ang) * w, y: p.y - Math.sin(p.ang) * w });
-                }
-                return pts;
-            };
-            return { spine, outline, tipBack: spine[0] };
-        };
-
-        // Render one crescent with the full holy-glow stack (or a cheap ghost smear).
-        const paintCrescent = (rot, ghost = false) => {
-            const cr = buildCrescent(rot);
-
-            if (!ghost && !PERF) {
-                // (a) Soft holy aura hugging the blade — fat, heavily blurred gold.
-                // Performance drops this single biggest translucent-overdraw+blur pass
-                // (a 1.55x-scaled full-blade fill); the gold body + white core below
-                // still carry the blade's shape and readability.
-                ctx.shadowBlur  = LITE ? 16 : 40;                    // <- pushed to the max (30-40)
-                ctx.shadowColor = `rgba(120, 205, 255, ${0.95 * flick})`;
-                ctx.fillStyle   = `rgba(150, 214, 255, ${0.34 * flick})`;
-                smoothClosed(cr.outline(1.55));
-                ctx.fill();
-            }
-
-            // (b) Thick pale-blue BODY of the blade (cold sanctity).
-            ctx.shadowBlur  = ghost ? (LITE ? 8 : 16) : (PERF ? 6 : (LITE ? 14 : 34));
-            ctx.shadowColor = 'rgba(110, 195, 255, 0.95)';
-            ctx.fillStyle   = ghost ? 'rgba(190, 230, 255, 0.50)' : 'rgba(176, 226, 255, 0.96)';
-            smoothClosed(cr.outline(1.0));
-            ctx.fill();
-
-            if (!ghost && !LITE) {
-                // (b2) Intense, thick icy-blue outer STROKE around the body.
-                // Lite drops this duplicate glow layer; the body fill above +
-                // the cool rim below keep the same blade outline.
-                ctx.shadowBlur  = 32;
-                ctx.shadowColor = 'rgba(120, 205, 255, 0.95)';
-                ctx.strokeStyle = 'rgba(155, 220, 255, 0.90)';
-                ctx.lineWidth   = Math.max(1.5, size * 0.016);
-                smoothClosed(cr.outline(1.0));
-                ctx.stroke();
-            }
-
-            // (c) Pale ice mid layer (smooth white -> icy-blue falloff).
-            ctx.shadowBlur  = ghost ? (LITE ? 6 : 8) : (PERF ? 5 : (LITE ? 12 : 30));
-            ctx.shadowColor = 'rgba(214, 240, 255, 0.95)';
-            ctx.fillStyle   = 'rgba(220, 242, 255, 0.96)';
-            smoothClosed(cr.outline(0.60));
-            ctx.fill();
-
-            // (d) Blinding WHITE-HOT core (thin inner ribbon).
-            ctx.shadowBlur  = ghost ? (LITE ? 4 : 6) : (PERF ? 5 : (LITE ? 10 : 24));
-            ctx.shadowColor = 'rgba(235, 248, 255, 1)';
-            ctx.fillStyle   = 'rgba(255, 255, 255, 0.98)';
-            smoothClosed(cr.outline(0.30));
-            ctx.fill();
-
-            if (!ghost) {
-                // (e) Crisp cool-blue rim — the darker "tearing" edge.
-                ctx.shadowBlur  = 0;
-                ctx.strokeStyle = 'rgba(70, 150, 235, 0.55)';
-                ctx.lineWidth   = Math.max(1, size * 0.006);
-                smoothClosed(cr.outline(1.0));
-                ctx.stroke();
-
-                // (f) Searing white centerline down the spine (the "lightning").
-                ctx.beginPath();
-                cr.spine.forEach((p, s) => (s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-                ctx.shadowBlur  = PERF ? 6 : (LITE ? 10 : 18);
-                ctx.shadowColor = 'rgba(210, 240, 255, 1)';
-                ctx.strokeStyle = 'rgba(226, 246, 255, 0.95)';
-                ctx.lineWidth   = Math.max(1.5, size * 0.018);
-                ctx.stroke();
-                ctx.shadowBlur  = PERF ? 4 : (LITE ? 6 : 10);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-                ctx.lineWidth   = Math.max(1, size * 0.008);
-                ctx.stroke();
-            }
-            return cr;
-        };
-
-        // 1) Motion-smear ghosts — faint shrinking trailing copies, drawn first.
-        // Lite keeps a single ghost so the slash still reads as "in motion";
-        // performance drops them entirely (the main slash still reads clearly).
-        for (let g = (PERF ? 0 : (LITE ? 1 : 3)); g >= 1; g--) {
-            ctx.save();
-            ctx.rotate(-0.06 * g);
-            ctx.scale(1 - 0.06 * g, 1 - 0.06 * g);
-            ctx.globalAlpha = baseGA * (0.18 / g);
-            paintCrescent(baseRot, true);
-            ctx.restore();
-        }
-
-        // 2) Main slash at full glory. Type 3 adds a second crossing crescent -> X.
-        ctx.globalAlpha = baseGA;
-        const main = paintCrescent(baseRot);
-        if (waveType === 3) {
-            ctx.save();
-            ctx.scale(1, -1);                    // reflect -> the two blades cross in an X
-            paintCrescent(baseRot);
-            ctx.restore();
-        }
-
-        // 3) Trailing sharp "speed" slashes peeling off the back tip (tearing air).
-        ctx.shadowBlur  = PERF ? 4 : (LITE ? 8 : 16);
-        ctx.shadowColor = 'rgba(140, 205, 255, 0.90)';
-        const back = main.tipBack;
-        const ox = Math.cos(back.ang),               oy = Math.sin(back.ang);            // along the arc
-        const nx = Math.cos(back.ang + Math.PI / 2), ny = Math.sin(back.ang + Math.PI / 2);
-        for (let i = 0; i < (PERF ? 1 : (LITE ? 2 : 4)); i++) {
-            const len = size * (0.22 + 0.10 * i) * (0.80 + 0.20 * Math.sin(t * 8 + i));
-            const off = (i - 1.5) * size * 0.014;
-            const sx  = back.x + nx * off, sy = back.y + ny * off;
-            ctx.globalAlpha = baseGA * (0.50 - 0.10 * i) * flick;
-            ctx.strokeStyle = i % 2 ? 'rgba(150, 215, 255, 0.90)' : 'rgba(235, 248, 255, 0.95)';
-            ctx.lineWidth   = Math.max(1, size * (0.012 - 0.002 * i));
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.quadraticCurveTo(                                    // bow the streak for a "whip"
-                sx + ox * len * 0.5 + nx * len * 0.10,
-                sy + oy * len * 0.5 + ny * len * 0.10,
-                sx + ox * len, sy + oy * len);
-            ctx.stroke();
-        }
-
-        // 4) Energy sparks flying along the blade edge.
-        ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 12);
-        const SP = PERF ? 4 : (LITE ? 8 : (waveType === 3 ? 20 : 14));
-        for (let i = 0; i < SP; i++) {
-            const u   = (t * 0.9 + i / SP) % 1;
-            const ang = (baseRot - sweep / 2) + sweep * u;
-            const env = Math.sin(Math.PI * u);
-            const r   = Rs + Wmax * (0.5 + 0.5 * env) + 0.05 * Rs * Math.sin(t * 6 + i * 1.3);
-            const sx  = Math.cos(ang) * r, sy = Math.sin(ang) * r;
-            ctx.globalAlpha = baseGA * (0.30 + 0.65 * env) * flick;
-            // Mostly icy-blue motes + white glints, with an occasional SUBTLE gold
-            // spark (the hero's holy-light warmth) so the family stays cold-sanctity.
-            ctx.fillStyle   = i % 4 === 0 ? 'rgba(255, 255, 255, 1)'
-                            : i % 4 === 2 ? 'rgba(232, 200, 110, 1)'
-                            :               'rgba(165, 220, 255, 1)';
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath();
-            ctx.arc(sx, sy, 1.4 + 2.4 * env, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
+        ctx.translate(Math.round(x + travelDir * reach * 0.4), Math.round(y));
+        ctx.shadowBlur = 0;
+        if (p < 0.25) SpriteManager._paintCells(ctx, SpriteManager._bossGatherCells(), PX, travelDir);
+        else if (p > 0.72) SpriteManager._paintCells(ctx, SpriteManager._bossFadeCells(), PX, travelDir);
+        else SpriteManager._paintCells(ctx, SpriteManager._bossCrescentCells(travelDir, heavy), PX, 1);
         ctx.restore();
     }
 
     /**
-     * drawHolySlash — the Hero's melee sword-arc, "cold sanctity" family.
-     *
-     * A clean, sharp, light-infused crescent that SWEEPS through its arc as the
-     * strike lands: `progress` (0..1, the active-window fraction) both wipes the
-     * blade into existence and fades/expands it, so it visually tracks the swing
-     * instead of just popping. Cool-white core over an icy-/pale-blue body with a
-     * disciplined thin rim — noble and knightly, never smoky or messy.
-     *
-     * PURELY COSMETIC: reach/size here only position the drawing; the real hitbox,
-     * damage and timing live in Enemy.js and are not read or changed.
-     *
-     * @param {number} x,y     world centre the blade sweeps around (the strike origin)
-     * @param {number} dir     +1 / -1 facing (mirrors the arc)
-     * @param {number} progress 0..1 active-window fraction (drives the wipe + fade)
-     * @param {object} [opts]  { reach, size, hue } hue: 0 quick slash .. 1 finisher (tints wider)
+     * drawHolySlash — the Hero's melee sword-arc, built from the SAME approved sheet
+     * crescent (drawLightWave family). `progress` (0..1 over the existing active frames)
+     * steps gather -> crescent -> dissolve. Finisher = the sheet's double edge; pogo
+     * passes rot = PI/2 so the crescent is rotated 90deg down. Cosmetic only.
      */
     static drawHolySlash(ctx, x, y, dir = 1, progress = 0, opts = {}) {
-        const { reach = 26, size = 46, heavy = false } = opts;
+        const { reach = 26, size = 46, heavy = false, rot = null } = opts;
         const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
         if (p >= 1) return;
-        const LITE = isLiteVfx();
-        const PERF = isPerfVfx();
-        const d = dir >= 0 ? 1 : -1;
-
-        // The arc sweeps from a high wind-up angle down-and-forward; `p` reveals it.
-        const Rs    = size * 0.5;
-        const sweep = heavy ? 2.6 : 2.15;                 // finisher carves a wider arc
-        const csw   = sweep * (0.35 + 0.65 * p);          // grows as the swing completes
-        const rot   = -Math.PI * 0.30 + sweep * 0.5 * p;  // rotate down-forward through the swing
-        const Wmax  = size * (heavy ? 0.20 : 0.16);
-        const fade  = Math.sin(Math.PI * Math.min(1, p * 1.15)); // in fast, out gentle
-        const N     = PERF ? 10 : (LITE ? 14 : 20);
-
-        const a0 = rot - csw / 2, a1 = rot + csw / 2;
-        const spine = [];
-        for (let s = 0; s <= N; s++) {
-            const u = s / N, ang = a0 + (a1 - a0) * u;
-            spine.push({ ang, u, x: Math.cos(ang) * Rs, y: Math.sin(ang) * Rs });
-        }
-        const halfW = (u) => Math.max(0, Wmax * Math.pow(Math.sin(Math.PI * u), 0.6) * (1 + 0.3 * (u - 0.5)));
-        const outline = (k) => {
-            const pts = [];
-            for (let s = 0; s <= N; s++) { const q = spine[s], w = halfW(q.u) * k; pts.push({ x: q.x + Math.cos(q.ang) * w, y: q.y + Math.sin(q.ang) * w }); }
-            for (let s = N; s >= 0; s--) { const q = spine[s], w = halfW(q.u) * k; pts.push({ x: q.x - Math.cos(q.ang) * w, y: q.y - Math.sin(q.ang) * w }); }
-            return pts;
-        };
-        const trace = (pts) => {
-            const n = pts.length;
-            ctx.beginPath();
-            ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
-            for (let i = 0; i < n; i++) { const c = pts[i], nx = pts[(i + 1) % n]; ctx.quadraticCurveTo(c.x, c.y, (c.x + nx.x) / 2, (c.y + nx.y) / 2); }
-            ctx.closePath();
-        };
-
+        const travelDir = dir >= 0 ? 1 : -1;
+        const PX = Math.max(2, Math.min(5, Math.round(size / 30)));
+        const swap = rot === Math.PI / 2;                             // pogo = rotate 90deg down
         ctx.save();
-        ctx.translate(x + d * reach * 0.4, y);
-        ctx.scale(d, 1);
-        ctx.globalAlpha = fade;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.translate(Math.round(x + travelDir * reach * 0.4), Math.round(y));
+        ctx.shadowBlur = 0;
+        if (p < 0.25 && !swap) {
+            SpriteManager._paintCells(ctx, SpriteManager._heroGatherCells(), PX, travelDir, false);
+        } else if (p > 0.72 && !swap) {
+            SpriteManager._paintCells(ctx, SpriteManager._heroDissolveCells(), PX, travelDir, false);
+        } else {
+            SpriteManager._paintCells(ctx, SpriteManager._heroCrescentCells(travelDir, heavy), PX, 1, swap);
+        }
+        ctx.restore();
+    }
 
-        if (!PERF) {                                        // (a) soft icy aura
-            ctx.shadowBlur = LITE ? 12 : 24;
-            ctx.shadowColor = 'rgba(120, 205, 255, 0.85)';
-            ctx.fillStyle = 'rgba(150, 214, 255, 0.28)';
-            trace(outline(1.5)); ctx.fill();
+    /**
+     * drawParryRing — EXACT port of the approved sheet parry ring (R1C3): a solid icy
+     * ring (#7fd4ff), four white cardinal highlights (#eaf6ff) at N/S/W/E, four diagonal
+     * sparks each ending in a single gold pixel (#b8ecff spark -> #c9962e tip), and a
+     * faint inner ring. `stance` = faint inner-ring pulse only; `progress` expands the
+     * counter ring. Radius/anchor only position it — hitbox/i-frames unchanged.
+     */
+    static drawParryRing(ctx, x, y, opts = {}) {
+        const { radius = 34, progress = 0, stance = false,
+                time = (typeof performance !== 'undefined' ? performance.now() : Date.now()) } = opts;
+        const PERF = isPerfVfx(), LITE = isLiteVfx();
+        const L1 = '#7fd4ff', L2 = '#b8ecff', L3 = '#eaf6ff', GLD = '#c9962e';
+        const PX = PERF ? 3 : 2;
+        ctx.save();
+        ctx.translate(Math.round(x), Math.round(y));
+        ctx.shadowBlur = 0;
+        const block = (dx, dy, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(dx / PX) * PX, Math.round(dy / PX) * PX, PX, PX); };
+        const ring = (R, col) => {
+            const n = Math.max(12, Math.round(2 * Math.PI * R / PX));
+            for (let a = 0; a < n; a++) { const th = a / n * 2 * Math.PI; block(Math.cos(th) * R, Math.sin(th) * R, col); }
+        };
+        if (stance) {
+            const R = radius * 0.42;
+            ctx.globalAlpha *= (Math.floor(time / 120) % 2 === 0) ? 0.55 : 0.32;
+            ring(R, L1);
+            ctx.restore();
+            return;
         }
-        // (b) pale-blue body
-        ctx.shadowBlur = PERF ? 4 : (LITE ? 10 : 20);
-        ctx.shadowColor = 'rgba(120, 200, 255, 0.9)';
-        ctx.fillStyle = 'rgba(182, 228, 255, 0.95)';
-        trace(outline(1.0)); ctx.fill();
-        // (c) white-hot core ribbon
-        ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 14);
-        ctx.shadowColor = 'rgba(235, 248, 255, 1)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
-        trace(outline(0.34)); ctx.fill();
-        // (d) crisp cool rim + a searing centerline (skipped on perf tier)
+        const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+        const R = radius * (0.45 + 0.55 * p);
+        ring(R, L1);                                                   // main icy ring
+        for (const [ux, uy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) block(ux * R, uy * R, L3); // white cardinals
         if (!PERF) {
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(70, 150, 235, 0.5)';
-            ctx.lineWidth = Math.max(1, size * 0.02);
-            trace(outline(1.0)); ctx.stroke();
-            ctx.beginPath();
-            spine.forEach((q, s) => (s ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
-            ctx.shadowBlur = LITE ? 6 : 12; ctx.shadowColor = 'rgba(210, 240, 255, 1)';
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.lineWidth = Math.max(1, size * 0.014);
-            ctx.stroke();
-            // a lone subtle gold glint riding the leading tip
-            const tip = spine[N];
-            ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(232, 200, 110, 1)';
-            ctx.fillStyle = 'rgba(232, 200, 110, 0.9)';
-            ctx.beginPath(); ctx.arc(tip.x, tip.y, Math.max(1.5, size * 0.03), 0, Math.PI * 2); ctx.fill();
+            for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {   // diagonal sparks + gold tips
+                const bx = Math.round(sx * R * Math.SQRT1_2 / PX), by = Math.round(sy * R * Math.SQRT1_2 / PX);
+                ctx.fillStyle = L2; ctx.fillRect((bx + sx * 2) * PX, (by + sy * 2) * PX, PX, PX);
+                ctx.fillStyle = GLD; ctx.fillRect((bx + sx * 3) * PX, (by + sy * 3) * PX, PX, PX);
+            }
+            if (!LITE) { ctx.save(); ctx.globalAlpha *= 0.4; ring(R * 0.45, L1); ctx.restore(); } // faint inner ring
         }
+        ctx.restore();
+    }
+
+    /**
+     * drawHeroDashStreaks — silver-blue dash (sampler R2C1): stepped sprite
+     * afterimages (35% / 60%), a steel motion-streak bundle (#7c88a0 / #aeb9cc)
+     * with one cape-dark line (#141c30) on top, and a crisp icy leading tip
+     * (#b8ecff / #eaf6ff). All hard pixels. Cosmetic — dash speed/duration unchanged.
+     */
+    static drawHeroDashStreaks(ctx, x, y, dir = 1, opts = {}) {
+        const { frame = null, pixelSize = 2, flip = false, palette = null, feetY = y } = opts;
+        const LITE = isLiteVfx(), PERF = isPerfVfx();
+        const d = dir >= 0 ? 1 : -1;
+        if (frame) {                                          // stepped pixel-sprite afterimages
+            const steps = PERF ? [[10, 0.35]] : (LITE ? [[9, 0.35], [16, 0.22]] : [[8, 0.35], [15, 0.55]]);
+            for (const [off, a] of steps) {
+                SpriteManager.drawSprite(ctx, frame, x - d * off, feetY, { pixelSize, flip, palette, tint: '#8fa9c8', alpha: a });
+            }
+        }
+        ctx.save();
+        ctx.shadowBlur = 0;
+        const PX = 2, len = 22;
+        const streaks = PERF ? [[-2, '#aeb9cc']]
+                     : (LITE ? [[-6, '#7c88a0'], [2, '#aeb9cc']]
+                             : [[-8, '#141c30'], [-3, '#7c88a0'], [3, '#aeb9cc'], [7, '#7c88a0']]);
+        for (const [dy, col] of streaks) {                    // thin solid steel streak lines
+            ctx.fillStyle = col;
+            ctx.fillRect(x - d * len, y + dy, len - 4, PX);
+        }
+        // crisp icy leading tip (chevron of pixel blocks)
+        ctx.fillStyle = '#b8ecff';
+        ctx.fillRect(x + d * 8, y - 4, PX, PX); ctx.fillRect(x + d * 11, y - 2, PX, PX);
+        ctx.fillRect(x + d * 12, y, PX, PX);
+        ctx.fillRect(x + d * 11, y + 2, PX, PX); ctx.fillRect(x + d * 8, y + 4, PX, PX);
+        ctx.fillStyle = '#eaf6ff'; ctx.fillRect(x + d * 10, y, PX, PX);
+        ctx.restore();
+    }
+
+    /**
+     * drawHeroTakeoffMotes — small rising #b8ecff pixel motes at the feet on a jump
+     * takeoff (`progress` 0..1 rises + fades them). Discrete blocks, subtle.
+     */
+    static drawHeroTakeoffMotes(ctx, x, feetY, opts = {}) {
+        const p = (opts.progress < 0 ? 0 : opts.progress > 1 ? 1 : opts.progress) || 0;
+        const PX = 2;
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha *= (1 - p);
+        ctx.fillStyle = '#b8ecff';
+        const rise = Math.round(p * 14);
+        for (const [dx, ph] of [[-5, 0], [5, 3], [-2, 6], [3, 2]]) {
+            if ((Math.round(p * 10) + dx) % 2 !== 0) continue;
+            ctx.fillRect(x + dx * PX, feetY - 2 - rise - ph, PX, PX);
+        }
+        ctx.restore();
+    }
+
+    /**
+     * drawLandingDust — neutral ground-contact puff in the hall's warm stone tones
+     * (sampler R2C3): symmetric #6b5c48/#4a3f33 puffs with #b3a184 highlights, a
+     * tiny chevron, and two rising #8d7b60 motes. `progress` fades + settles it.
+     * All hard pixels. Cosmetic.
+     */
+    // EXACT port of the approved sampler landing dust (vfx_gen.js R2C3): a stone
+    // ground line + shadow, two symmetric DU1 dust puffs with DU3 highlights and
+    // DU0 roots, a little centre spray, and two rising motes. `progress` (0..1)
+    // fades it out and lifts the motes; the silhouette stays the sheet's exactly.
+    static drawLandingDust(ctx, x, groundY, opts = {}) {
+        const { progress = 0, px = 2 } = opts;
+        const PERF = isPerfVfx(), LITE = isLiteVfx();
+        const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+        const DU0 = '#4a3f33', DU1 = '#6b5c48', DU2 = '#8d7b60', DU3 = '#b3a184';
+        const PX = px;
+        const rise = Math.round(p * 2.5 * PX);
+        ctx.save();
+        ctx.shadowBlur = 0;
+        const baseGA = ctx.globalAlpha * (1 - p);                       // fade over the dust's life
+        // Paint a sampler cell (cellX,cellY,w,h) relative to centre col 20 / ground row 30.
+        const cell = (cx, cy, w, h, col, al, lift) => {
+            ctx.globalAlpha = baseGA * (al == null ? 1 : al);
+            ctx.fillStyle = col;
+            ctx.fillRect(x + (cx - 20) * PX, groundY + (cy - 30) * PX - (lift ? rise : 0), w * PX, h * PX);
+        };
+        cell(4, 30, 32, 1, DU2);                                        // ground line
+        cell(4, 31, 32, 3, DU0, 0.5);                                  // ground shadow
+        cell(10, 26, 3, 3, DU1); cell(12, 25, 1, 1, DU3); cell(6, 27, 2, 2, DU0);   // left puff
+        cell(27, 26, 3, 3, DU1); cell(27, 25, 1, 1, DU3); cell(32, 27, 2, 2, DU0);  // right puff
+        cell(17, 24, 2, 1, DU3); cell(21, 24, 2, 1, DU3);              // centre spray
+        cell(16, 22, 1, 1, DU2); cell(23, 22, 1, 1, DU2);
+        if (!PERF) { cell(8, 24, 2, 2, DU1, 0.7); cell(30, 24, 2, 2, DU1, 0.7); }   // faint puff caps
+        if (!LITE) { cell(14, 19, 1, 1, DU2, 0.7, true); cell(25, 19, 1, 1, DU2, 0.7, true); } // rising motes
         ctx.restore();
     }
 
@@ -1828,15 +1788,8 @@ export class SpriteManager {
      *                               ramp-in + fade-out; omit for a steady beam.
      */
     static drawLaserBeam(ctx, x, y, facing = 1, opts = {}) {
-        const {
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            intensity = 1,
-            length = 2400,
-            thickness = 46,
-            progress = null,
-        } = opts;
-
-        // Lifetime envelope: fast ignition ramp, hold, smooth tail fade.
+        const { time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+                intensity = 1, length = 2400, thickness = 46, progress = null } = opts;
         let env = 1;
         if (progress != null) {
             const pr = Math.max(0, Math.min(1, progress));
@@ -1846,92 +1799,35 @@ export class SpriteManager {
         }
         const A = intensity * env;
         if (A <= 0) return;
-        const t = time / 1000;
-        const th = thickness;
-        const LITE = isLiteVfx();
         const PERF = isPerfVfx();
-
-        // Energy flicker (fast crackle over a slow swell).
-        const flk = (0.86 + 0.14 * Math.sin(t * 40)) * (0.94 + 0.06 * Math.sin(t * 7.3));
-
+        const E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a', UMB = '#14101c';
+        const frame = Math.floor(time / 60);
+        const PX = Math.max(2, Math.round(thickness / 12));
+        const L = length;
         ctx.save();
-        ctx.translate(x, y);
-        ctx.scale(facing, 1);          // draw rightward; facing mirrors the whole bolt
-        ctx.lineCap = 'round';
-
-        // Per-layer colour with a soft fade over the last stretch (the beam is
-        // "screen-spanning", so it trails off rather than ending hard).
-        const beamGrad = (rgb, a) => {
-            const g = ctx.createLinearGradient(0, 0, length, 0);
-            g.addColorStop(0.00, `rgba(${rgb}, ${a})`);
-            g.addColorStop(0.72, `rgba(${rgb}, ${a})`);
-            g.addColorStop(1.00, `rgba(${rgb}, 0)`);
-            return g;
-        };
-        const beam = (w, rgb, a, blur, sc) => {
-            ctx.lineWidth = Math.max(1, w * flk);
-            ctx.strokeStyle = beamGrad(rgb, a);
-            ctx.shadowBlur = blur;
-            ctx.shadowColor = `rgba(${sc}, 0.9)`;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(length, 0);
-            ctx.stroke();
-        };
-
-        // Outer bloom -> body -> bright sheath (red/orange glowing strokes).
-        // Lite collapses the two widest translucent bloom passes into one slightly
-        // stronger red glow and caps every shadowBlur, keeping the thick red/orange
-        // beam identity at a fraction of the fill+blur cost. Performance narrows that
-        // widest bloom stroke further (less full-length transparent overdraw) and
-        // caps its blur harder — the body + sheath below still read as a thick beam.
-        beam(th * (PERF ? 2.0 : 2.8), '255, 40, 20', (LITE ? 0.42 : 0.30) * A, PERF ? 8 : (LITE ? 16 : 48), '255, 40, 20');
-        if (!LITE) beam(th * 1.9, '255, 90, 30', 0.45 * A, 34, '255, 80, 30');
-        beam(th * 1.15, '255, 140, 50', 0.70 * A, PERF ? 6 : (LITE ? 12 : 22), '255, 120, 40');
-        beam(th * 0.62, '255, 230, 180', 0.90 * A, PERF ? 6 : (LITE ? 10 : 16), '255, 160, 80');
-
-        // Blinding white-hot core + searing centerline (additive => over-bright).
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineWidth = Math.max(1, th * 0.34 * flk);
-        ctx.strokeStyle = beamGrad('255, 255, 255', 0.95 * A);
-        ctx.shadowBlur = PERF ? 6 : (LITE ? 10 : 14);
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
-
-        ctx.lineWidth = Math.max(2, th * 0.12);
-        ctx.strokeStyle = beamGrad('255, 255, 255', 1.0 * A);
-        ctx.shadowBlur = PERF ? 4 : (LITE ? 6 : 8);
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
-
-        // Muzzle flare — radial white→orange→red burst at the source.
-        const fr = th * 1.9 * (0.9 + 0.2 * Math.sin(t * 30));
-        const flare = ctx.createRadialGradient(0, 0, 2, 0, 0, fr);
-        flare.addColorStop(0.00, `rgba(255, 255, 255, ${0.95 * A})`);
-        flare.addColorStop(0.25, `rgba(255, 200, 120, ${0.80 * A})`);
-        flare.addColorStop(0.55, `rgba(255, 70, 30, ${0.45 * A})`);
-        flare.addColorStop(1.00, 'rgba(120, 0, 0, 0)');
-        ctx.fillStyle = flare;
-        ctx.beginPath();
-        ctx.arc(0, 0, fr, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Lens-flare star rays radiating from the muzzle.
-        const R = PERF ? 4 : (LITE ? 6 : 12);
-        ctx.shadowBlur = PERF ? 4 : (LITE ? 6 : 12);
-        ctx.shadowColor = 'rgba(255, 120, 50, 0.9)';
-        for (let i = 0; i < R; i++) {
-            const ang = t * 0.5 + (i * Math.PI * 2) / R;
-            const len = fr * (0.8 + 1.5 * ((i * 7) % 5) / 5) * (0.55 + 0.45 * Math.sin(t * 9 + i));
-            ctx.globalAlpha = (0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 11 + i * 1.7))) * A;
-            ctx.lineWidth = i % 3 === 0 ? 2.2 : 1.2;
-            ctx.strokeStyle = i % 3 === 0 ? 'rgba(255, 235, 200, 1)' : 'rgba(255, 110, 50, 1)';
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(Math.cos(ang) * len, Math.sin(ang) * len);
-            ctx.stroke();
+        ctx.translate(Math.round(x), Math.round(y));
+        ctx.scale(facing, 1);
+        ctx.shadowBlur = 0;
+        const baseGA = ctx.globalAlpha * A;
+        // sampler R0C3: symmetric horizontal bands E2 rim / E1 / UMB void core / E1 / E2 rim
+        if (!PERF) { ctx.globalAlpha = baseGA * 0.13; ctx.fillStyle = E2; ctx.fillRect(0, -4.5 * PX, L, 9 * PX); }
+        ctx.globalAlpha = baseGA;
+        const band = (gy, gh, col) => { ctx.fillStyle = col; ctx.fillRect(0, gy * PX, L, gh * PX); };
+        band(-4, 1, E2); band(-3, 2, E1); band(-1, 3, UMB); band(2, 2, E1); band(4, 1, E2);
+        // hot E3 filament dashes crawling along top & bottom sheath rows
+        ctx.fillStyle = E3;
+        const dashN = Math.floor(L / (PX * 8));
+        for (let i = 0; i < dashN; i++) {
+            if ((i + frame) % 2) continue;
+            const bx = (i * 8) * PX + ((frame * 2) % 8) * PX;
+            ctx.fillRect(bx, -3 * PX, 3 * PX, PX);
+            ctx.fillRect(bx + 4 * PX, 3 * PX, 3 * PX, PX);
         }
-        ctx.globalAlpha = 1;
-
+        // muzzle flare (E2 flare, E3 hot, UMB core) at the source
+        ctx.fillStyle = E2; ctx.fillRect(-2 * PX, -4 * PX, 4 * PX, 9 * PX);
+        ctx.fillStyle = E3; ctx.fillRect(-1 * PX, -3 * PX, 3 * PX, 6 * PX);
+        ctx.fillStyle = UMB; ctx.fillRect(0, -1 * PX, 2 * PX, 3 * PX);
+        ctx.fillStyle = E1; ctx.fillRect(-3 * PX, -5 * PX, 2 * PX, 2 * PX); ctx.fillRect(-3 * PX, 4 * PX, 2 * PX, 2 * PX);
         ctx.restore();
     }
 
@@ -1949,119 +1845,43 @@ export class SpriteManager {
      * @param {object} [opts]     { radius, time(ms), intensity }
      */
     static drawChargedAirAura(ctx, x, y, opts = {}) {
-        const {
-            radius = 80,
-            time = (typeof performance !== 'undefined' ? performance.now() : Date.now()),
-            intensity = 1,
-        } = opts;
+        const { radius = 80, time = (typeof performance !== 'undefined' ? performance.now() : Date.now()), intensity = 1 } = opts;
         const A = intensity;
         if (A <= 0) return;
-        const t = time / 1000;
-        const R = radius;
-        const LITE = isLiteVfx();
         const PERF = isPerfVfx();
-        // Performance caps the large transparent haze radius so this big airborne
-        // aura fill covers less overdraw while still enveloping the figure.
-        const haloR = PERF ? R * 1.2 : R * 1.5;
-
+        const E0 = '#6e0f1c', E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a', UMB = '#14101c';
+        const PX = Math.max(2, Math.round(radius / 16));
+        const frame = Math.floor(time / 90);
         ctx.save();
-        ctx.translate(x, y);
-
-        // 0) Black/red core haze enveloping the figure (all around — it's airborne).
-        const core = ctx.createRadialGradient(0, 0, R * 0.10, 0, 0, haloR);
-        core.addColorStop(0.00, `rgba(80, 4, 4, ${0.42 * A})`);
-        core.addColorStop(0.35, `rgba(30, 2, 4, ${0.50 * A})`);
-        core.addColorStop(0.72, `rgba(8, 0, 2, ${0.40 * A})`);
-        core.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = core;
-        ctx.beginPath();
-        ctx.arc(0, 0, haloR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 1) Two crowns of roaring, chaotic flame tongues (black root -> red tip).
-        const crown = (count, baseLen, ringX, ringY, biasUp, seed) => {
-            for (let i = 0; i < count; i++) {
-                const ang = (i / count) * Math.PI * 2 + seed;
-                const chaos = Math.sin(t * 7 + i * 2.3 + seed) * Math.sin(t * 3.1 + i * 1.1);
-                const flick = 0.5 + 0.5 * Math.sin(t * 13 + i * 1.9 + seed);
-                const rootX = Math.cos(ang) * ringX;
-                const rootY = Math.sin(ang) * ringY;
-                const len = baseLen * (0.55 + 0.7 * flick) * (0.7 + 0.5 * Math.abs(chaos));
-                const hw = R * (0.10 + 0.05 * flick);
-                const ox = Math.cos(ang), oy = Math.sin(ang);
-                const sway = Math.sin(t * 4 + i * 1.7) * R * 0.12 + chaos * R * 0.10;
-                const tipX = rootX + ox * len * 0.5 + sway;
-                const tipY = rootY + oy * len * 0.4 - len * biasUp;  // upward bias (fire rises)
-
-                const g = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
-                g.addColorStop(0.00, `rgba(4, 0, 0, ${0.90 * A})`);   // near-black root
-                g.addColorStop(0.28, `rgba(90, 6, 6, ${0.80 * A})`);
-                g.addColorStop(0.62, `rgba(210, 28, 20, ${0.78 * A * (0.6 + 0.4 * flick)})`);
-                g.addColorStop(0.88, `rgba(255, 80, 36, ${0.50 * A * flick})`);
-                g.addColorStop(1.00, 'rgba(255, 140, 60, 0)');
-                ctx.fillStyle = g;
-                ctx.shadowColor = `rgba(200, 30, 16, ${0.6 * A})`;
-                ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 16);
-
-                const dx = tipX - rootX, dy = tipY - rootY;
-                const pl = Math.hypot(dx, dy) || 1;
-                const nx = -dy / pl, ny = dx / pl;
-                ctx.beginPath();
-                ctx.moveTo(rootX + nx * hw, rootY + ny * hw);
-                ctx.quadraticCurveTo(rootX + dx * 0.5 + nx * hw * 1.5, rootY + dy * 0.5 + ny * hw * 1.5, tipX, tipY);
-                ctx.quadraticCurveTo(rootX + dx * 0.5 - nx * hw * 1.5, rootY + dy * 0.5 - ny * hw * 1.5, rootX - nx * hw, rootY - ny * hw);
-                ctx.closePath();
-                ctx.fill();
-            }
-        };
-        crown(PERF ? 8 : (LITE ? 12 : 20), R * 1.05, R * 0.70, R * 0.62, 0.85, 0.0);  // tall outer crown
-        crown(PERF ? 5 : (LITE ? 8 : 14), R * 0.70, R * 0.50, R * 0.45, 0.60, 1.3);   // dense inner fire
+        ctx.translate(Math.round(x), Math.round(y));
         ctx.shadowBlur = 0;
-
-        // 2) Drifting BLACK smoke puffs (normal blend) — the chaotic dark element.
-        for (let i = 0; i < (PERF ? 2 : (LITE ? 4 : 7)); i++) {
-            const ph = (t * 0.5 + i / 7) % 1;
-            const ang = t * 0.6 + i * 2.4;
-            const dist = R * (0.4 + 0.7 * ph);
-            const sx = Math.cos(ang) * dist * 0.9;
-            const sy = Math.sin(ang) * dist - ph * R * 0.7;
-            ctx.globalAlpha = (1 - ph) * 0.40 * A;
-            ctx.fillStyle = 'rgba(6, 2, 4, 0.9)';
-            ctx.beginPath();
-            ctx.arc(sx, sy, R * (0.12 + 0.16 * ph), 0, Math.PI * 2);
-            ctx.fill();
+        const baseGA = ctx.globalAlpha * Math.min(1.2, A);
+        ctx.globalAlpha = baseGA;
+        // Central charge motif = a fan of SPACED, flickering vertical ember shards
+        // (1-block wide, transparent gaps between them) — a shaped, animated pixel
+        // motif, NOT a flat black rectangle. Heights breathe per frame so it lives.
+        const shardX = [-5, -3, -1, 1, 3, 5];
+        for (let s = 0; s < shardX.length; s++) {
+            const sx = shardX[s];
+            const h = 3 + ((frame + s * 2 + Math.abs(sx)) % 5);           // 3..7 tall, staggered
+            ctx.fillStyle = Math.abs(sx) >= 3 ? E0 : UMB;                 // outer ember-dark, inner void
+            ctx.fillRect(sx * PX, -h * PX, PX, h * 2 * PX);
+            ctx.fillStyle = (s % 2) ? E2 : E1;                           // hot ember tips
+            ctx.fillRect(sx * PX, -h * PX, PX, PX);
+            ctx.fillRect(sx * PX, (h - 1) * PX, PX, PX);
         }
-        ctx.globalAlpha = 1;
-
-        // 3) Chaotic flying embers + 4) white-hot crackle sparks (additive).
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        const P = PERF ? 8 : (LITE ? 14 : 30);
-        for (let i = 0; i < P; i++) {
-            const ph = (t * (0.7 + 0.05 * (i % 5)) + i / P) % 1;
-            const ang = i * 2.39996 + t * (1.2 + 0.5 * Math.sin(i)); // golden-angle scatter + drift
-            const spin = Math.sin(t * 5 + i * 1.7);
-            const dist = R * (0.2 + 1.1 * ph) * (0.8 + 0.3 * spin);
-            const ex = Math.cos(ang) * dist + Math.sin(t * 6 + i) * R * 0.08;
-            const ey = Math.sin(ang) * dist - ph * R * 0.9;        // rise
-            ctx.globalAlpha = (1 - ph) * 0.70 * A;
-            ctx.fillStyle = i % 5 === 0 ? 'rgba(255, 150, 60, 1)'
-                          : (i % 3 ? 'rgba(230, 36, 20, 1)' : 'rgba(150, 12, 10, 1)');
-            ctx.beginPath();
-            ctx.arc(ex, ey, 1.2 + 2.4 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
-            ctx.fill();
+        // small pulsing hot core between the inner shards
+        ctx.fillStyle = E3; ctx.fillRect(-PX, (frame % 2) ? -PX : 0, PX, PX); ctx.fillRect(0, (frame % 2) ? 0 : -PX, PX, PX);
+        const pts = [[0, -9, 0, 1], [8, -6, -1, 1], [10, 0, -1, 0], [8, 7, -1, -1], [0, 9, 0, -1], [-8, 7, 1, -1], [-10, 0, 1, 0], [-8, -6, 1, 1]];
+        const g = frame % 3;
+        for (const [px, py, dx, dy] of pts) {
+            const gx = px + dx * g, gy = py + dy * g;
+            ctx.fillStyle = E2; ctx.fillRect(gx * PX, gy * PX, PX, PX);
+            ctx.fillStyle = E1; ctx.fillRect((gx + dx) * PX, (gy + dy) * PX, PX, PX);
+            if (!PERF) { ctx.globalAlpha = baseGA * 0.8; ctx.fillStyle = E0; ctx.fillRect((gx + dx * 2) * PX, (gy + dy * 2) * PX, PX, PX); ctx.globalAlpha = baseGA; }
         }
-        for (let i = 0; i < (PERF ? 2 : (LITE ? 3 : 6)); i++) {
-            const ang = t * (3 + i) + i * 1.3;
-            const orbit = R * (0.9 + 0.4 * Math.sin(t * 8 + i));
-            ctx.globalAlpha = (0.3 + 0.5 * (0.5 + 0.5 * Math.sin(t * 20 + i))) * A;
-            ctx.fillStyle = 'rgba(255, 210, 170, 1)';
-            ctx.beginPath();
-            ctx.arc(Math.cos(ang) * orbit, Math.sin(ang) * orbit * 0.9, 1.0 + 0.8 * Math.abs(Math.sin(t * 15 + i)), 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.restore();
-
+        ctx.globalAlpha = baseGA * 0.4; ctx.fillStyle = E1; ctx.fillRect(-10 * PX, 12 * PX, 20 * PX, 2 * PX);
+        ctx.globalAlpha = baseGA * 0.5; ctx.fillStyle = E0; ctx.fillRect(-12 * PX, 14 * PX, 24 * PX, PX);
         ctx.restore();
     }
 
@@ -2098,173 +1918,38 @@ export class SpriteManager {
         const { radius = 90, intensity = 1 } = opts;
         const A = intensity;
         if (A <= 0) return;
-        const t = time / 1000;
-        const R = radius;
-        const LITE = isLiteVfx();
-        const PERF = isPerfVfx();
-        // Performance caps the huge deep-black backing radius so this large aura's
-        // biggest transparent fill covers less overdraw (still frames the figure).
-        const backR = PERF ? R * 1.4 : R * 1.7;
-
-        // Unstable pulse signals: a punchy heartbeat, a fast flicker, and a chaotic
-        // jitter so the whole thing reads as power that's barely being contained.
-        const beat    = 0.5 + 0.5 * Math.sin(t * 6.0);                       // 0..1 main pulse
-        const flicker = 0.55 + 0.45 * Math.sin(t * 22.0 + Math.sin(t * 5) * 3);
-        const jitter  = 0.5 * Math.sin(t * 37.0) + 0.5 * Math.sin(t * 19.0); // -1..1 chaos
-        const swell   = 0.90 + 0.16 * beat;                                  // ring breathing
-
+        const E0 = '#6e0f1c', E1 = '#a8182a', E2 = '#e0263a', E3 = '#ff5a4a', UMB = '#14101c';
+        const t = time / 1000, beat = 0.5 + 0.5 * Math.sin(t * 8);
+        const PX = Math.max(2, Math.round(radius / 15)) + (beat > 0.6 ? 1 : 0);   // pulse the block size
+        const frame = Math.floor(time / 70);
         ctx.save();
-        ctx.translate(x, y);
-
-        // 0) DEEP BLACK backing — a pool of contained darkness the energy strains
-        //    against, so every bright element below reads with maximum contrast.
-        const dark = ctx.createRadialGradient(0, 0, R * 0.05, 0, 0, backR);
-        dark.addColorStop(0.00, `rgba(10, 0, 2, ${0.55 * A})`);
-        dark.addColorStop(0.55, `rgba(4, 0, 1, ${0.50 * A})`);
-        dark.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = dark;
-        ctx.beginPath();
-        ctx.arc(0, 0, backR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 1) CRIMSON FLARES stabbing outward past the ring (darkredaura1 "burst"):
-        //    long, thin, black-rooted blades that flicker independently and shoot
-        //    hot crimson tips. High red shadowBlur makes them roar.
-        const FLARES = PERF ? 8 : (LITE ? 12 : 24);
-        ctx.shadowBlur = PERF ? 6 : (LITE ? 12 : 26);
-        for (let i = 0; i < FLARES; i++) {
-            const ang  = (i / FLARES) * Math.PI * 2 + t * 0.5 + jitter * 0.05;
-            const fl   = 0.5 + 0.5 * Math.sin(t * 17 + i * 2.7);             // per-blade flicker
-            const long = i % 3 === 0;                                        // a few extra-long spikes
-            const len  = R * (0.95 + (long ? 1.15 : 0.65) * fl) * swell;
-            const baseR = R * 0.55;
-            const hw   = R * (0.05 + 0.05 * fl);                             // half-width at the root
-            const ox = Math.cos(ang), oy = Math.sin(ang);
-            const rx = ox * baseR, ry = oy * baseR;                          // root (near the ring)
-            const tx = ox * len,   ty = oy * len;                            // tip (out in the dark)
-            const nx = -oy, ny = ox;                                         // perpendicular
-
-            const g = ctx.createLinearGradient(rx, ry, tx, ty);
-            g.addColorStop(0.00, `rgba(6, 0, 0, ${0.85 * A})`);             // black root
-            g.addColorStop(0.30, `rgba(150, 10, 8, ${0.80 * A})`);
-            g.addColorStop(0.70, `rgba(240, 36, 28, ${0.85 * A * (0.6 + 0.4 * fl)})`);
-            g.addColorStop(1.00, 'rgba(255, 170, 150, 0)');                 // hot fading point
-            ctx.fillStyle = g;
-            ctx.shadowColor = `rgba(220, 30, 20, ${0.7 * A})`;
-            ctx.globalAlpha = (0.55 + 0.45 * fl) * A;
-            ctx.beginPath();
-            ctx.moveTo(rx + nx * hw, ry + ny * hw);
-            ctx.lineTo(tx, ty);
-            ctx.lineTo(rx - nx * hw, ry - ny * hw);
-            ctx.closePath();
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
+        ctx.translate(Math.round(x), Math.round(y));
         ctx.shadowBlur = 0;
-
-        // 2) The roaring ENERGY RING (darkredaura2): a glowing crimson annulus that
-        //    breathes with the pulse. Drawn additively with a fat red shadow so the
-        //    band blooms like fire rather than reading as a clean stroked circle.
-        const ringR = R * swell;
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        const band = ctx.createRadialGradient(0, 0, ringR * 0.62, 0, 0, ringR * 1.06);
-        band.addColorStop(0.00, 'rgba(40, 0, 0, 0)');
-        band.addColorStop(0.55, `rgba(150, 12, 10, ${0.45 * A})`);
-        band.addColorStop(0.80, `rgba(240, 40, 30, ${0.85 * A * flicker})`); // bright crest
-        band.addColorStop(0.92, `rgba(255, 90, 60, ${0.55 * A * flicker})`);
-        band.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
-        ctx.fillStyle = band;
-        ctx.shadowColor = `rgba(255, 40, 30, ${0.9 * A})`;
-        ctx.shadowBlur = PERF ? 8 : (LITE ? 16 : 34);
-        ctx.beginPath();
-        ctx.arc(0, 0, ringR * 1.06, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // 2b) Fire tongues licking off the ring (black root -> blood-red -> bright),
-        //     counter-rotating against the flares so the band churns.
-        const TONGUES = PERF ? 6 : (LITE ? 10 : 22);
-        ctx.shadowBlur = PERF ? 4 : (LITE ? 8 : 18);
-        for (let i = 0; i < TONGUES; i++) {
-            const ang = (i / TONGUES) * Math.PI * 2 - t * 0.9;
-            const fk  = 0.5 + 0.5 * Math.sin(t * 14 + i * 1.9);
-            const ox = Math.cos(ang), oy = Math.sin(ang);
-            const rootX = ox * ringR * 0.86, rootY = oy * ringR * 0.86;
-            const len  = R * (0.22 + 0.40 * fk);
-            const sway = Math.sin(t * 5 + i * 1.7) * R * 0.06;
-            const tipX = ox * (ringR + len) + (-oy) * sway;
-            const tipY = oy * (ringR + len) + ( ox) * sway;
-            const dx = tipX - rootX, dy = tipY - rootY;
-            const pl = Math.hypot(dx, dy) || 1;
-            const nx = -dy / pl, ny = dx / pl;
-            const hw = R * (0.05 + 0.03 * fk);
-
-            const g = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
-            g.addColorStop(0.00, `rgba(4, 0, 0, ${0.85 * A})`);
-            g.addColorStop(0.40, `rgba(150, 12, 10, ${0.80 * A})`);
-            g.addColorStop(0.80, `rgba(245, 45, 32, ${0.70 * A * fk})`);
-            g.addColorStop(1.00, 'rgba(255, 120, 70, 0)');
-            ctx.fillStyle = g;
-            ctx.shadowColor = `rgba(220, 30, 18, ${0.6 * A})`;
-            ctx.beginPath();
-            ctx.moveTo(rootX + nx * hw, rootY + ny * hw);
-            ctx.quadraticCurveTo(rootX + dx * 0.5 + nx * hw * 1.4, rootY + dy * 0.5 + ny * hw * 1.4, tipX, tipY);
-            ctx.quadraticCurveTo(rootX + dx * 0.5 - nx * hw * 1.4, rootY + dy * 0.5 - ny * hw * 1.4, rootX - nx * hw, rootY - ny * hw);
-            ctx.closePath();
-            ctx.fill();
+        const baseGA = ctx.globalAlpha * Math.min(1.3, A);
+        ctx.globalAlpha = baseGA;
+        // Ready state: same SPACED ember heat-shard fan, taller + more violent, with
+        // a flashing hot core between the inner shards (no flat rectangle).
+        const shardX = [-5, -3, -1, 1, 3, 5];
+        for (let s = 0; s < shardX.length; s++) {
+            const sx = shardX[s];
+            const h = 5 + ((frame + s * 2 + Math.abs(sx)) % 6);          // taller than the hold
+            ctx.fillStyle = Math.abs(sx) >= 3 ? E0 : UMB;
+            ctx.fillRect(sx * PX, -h * PX, PX, h * 2 * PX);
+            ctx.fillStyle = (s % 2) ? E3 : E2;                          // hotter tips (ready)
+            ctx.fillRect(sx * PX, -h * PX, PX, PX);
+            ctx.fillRect(sx * PX, (h - 1) * PX, PX, PX);
         }
-        ctx.shadowBlur = 0;
-
-        // 3) The blinding WHITE / RED CORE pinned on the Boss (max contrast vs the
-        //    black backing). Small, savage, and pulsing — the fully-charged heart.
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        const coreR = R * (0.30 + 0.10 * beat) * (0.9 + 0.2 * flicker);
-        const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
-        core.addColorStop(0.00, `rgba(255, 255, 250, ${0.95 * A})`);        // white-hot
-        core.addColorStop(0.22, `rgba(255, 225, 210, ${0.90 * A})`);
-        core.addColorStop(0.45, `rgba(255, 70, 50, ${0.85 * A})`);          // bright red
-        core.addColorStop(0.78, `rgba(150, 12, 10, ${0.45 * A})`);
-        core.addColorStop(1.00, 'rgba(60, 0, 0, 0)');
-        ctx.fillStyle = core;
-        ctx.shadowColor = `rgba(255, 60, 40, ${A})`;
-        ctx.shadowBlur = PERF ? 10 : (LITE ? 18 : 40);
-        ctx.beginPath();
-        ctx.arc(0, 0, coreR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // A tighter white pinpoint that strobes with the flicker for instability.
-        ctx.globalAlpha = (0.5 + 0.5 * flicker) * A;
-        ctx.fillStyle = 'rgba(255, 248, 240, 1)';
-        ctx.shadowColor = 'rgba(255, 120, 90, 1)';
-        ctx.shadowBlur = PERF ? 8 : (LITE ? 14 : 30);
-        ctx.beginPath();
-        ctx.arc(0, 0, coreR * 0.34, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // 4) Chaotic flying EMBERS + crackle sparks bursting outward (additive).
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        const EM = PERF ? 8 : (LITE ? 12 : 28);
-        for (let i = 0; i < EM; i++) {
-            const ph  = (t * (0.9 + 0.06 * (i % 5)) + i / EM) % 1;          // 0..1 fly-out
-            const ang = i * 2.39996 + t * (1.1 + 0.4 * Math.sin(i));        // golden-angle scatter
-            const dist = R * (0.35 + 1.25 * ph);
-            const ex = Math.cos(ang) * dist;
-            const ey = Math.sin(ang) * dist;
-            ctx.globalAlpha = (1 - ph) * 0.8 * A;
-            ctx.fillStyle = i % 6 === 0 ? 'rgba(255, 230, 200, 1)'          // a few white sparks
-                          : (i % 2 ? 'rgba(240, 40, 28, 1)' : 'rgba(150, 10, 8, 1)');
-            ctx.shadowColor = 'rgba(255, 40, 26, 1)';
-            ctx.shadowBlur = PERF ? 3 : (LITE ? 6 : 12);
-            ctx.beginPath();
-            ctx.arc(ex, ey, 1.2 + 2.6 * ((i * 7) % 5) / 5, 0, Math.PI * 2);
-            ctx.fill();
+        ctx.fillStyle = beat > 0.5 ? E3 : E2; ctx.fillRect(-PX, -PX, 2 * PX, 2 * PX);   // flashing hot core
+        const inner = [[0, -4], [4, -3], [5, 0], [4, 3], [0, 4], [-4, 3], [-5, 0], [-4, -3]];
+        for (const [px, py] of inner) { ctx.fillStyle = E3; ctx.fillRect(px * PX, py * PX, PX, PX); }
+        const outer = [[0, -9, 0, 1], [8, -6, -1, 1], [10, 0, -1, 0], [8, 7, -1, -1], [0, 9, 0, -1], [-8, 7, 1, -1], [-10, 0, 1, 0], [-8, -6, 1, 1]];
+        const g = frame % 3;
+        for (const [px, py, dx, dy] of outer) {
+            const gx = px + dx * g, gy = py + dy * g;
+            ctx.fillStyle = E2; ctx.fillRect(gx * PX, gy * PX, PX, PX);
+            ctx.fillStyle = E1; ctx.fillRect((gx + dx) * PX, (gy + dy) * PX, PX, PX);
         }
-        ctx.restore();
-
+        ctx.globalAlpha = baseGA * 0.45; ctx.fillStyle = E1; ctx.fillRect(-12 * PX, 12 * PX, 24 * PX, 2 * PX);
         ctx.restore();
     }
 }

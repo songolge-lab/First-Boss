@@ -1192,18 +1192,25 @@ export class Enemy {
         const inCounter = this.moveState === MoveState.PARRY_COUNTER;
         const dodging = this.iFrames > 0 && !inCounter && this.fearStunTimer <= 0;
 
-        // Tint: white hit-flash; dazed grey while feared; white/red dash-windup flicker.
+        // Tint: white hit-flash; dazed grey while feared; white/icy-blue dash-windup flicker.
         let tint = null;
         if (this.hitFlash > 0) tint = '#ffffff';
         else if (this.fearStunTimer > 0) tint = '#5a5f78';
         else if (this.moveState === MoveState.DASH_WINDUP) {
-            tint = (Math.floor(performance.now() / 60) % 2) ? '#ffffff' : '#e23b3b';
+            tint = (Math.floor(performance.now() / 60) % 2) ? '#ffffff' : '#7fd4ff';
         }
 
         // Free projectiles (the 3 light waves) render in world space.
         PerfMonitor.start('enemy projectiles');
         if (!PerfMonitor.shouldSkip('enemyProjectiles')) this.drawWaveProjectiles(ctx);
         PerfMonitor.end('enemy projectiles');
+
+        // Silver-blue dash streaks + stepped afterimages — drawn BEHIND the sprite.
+        if (this.moveState === MoveState.DASHING && !PerfMonitor.shouldSkip('enemyParryVFX')) {
+            SpriteManager.drawHeroDashStreaks(ctx, this.x, this.y, Math.sign(this.velocityX) || this.facing, {
+                frame, pixelSize, flip, palette: spritePalette, feetY,
+            });
+        }
 
         // Soft contact shadow, only while actually on the ground.
         if (this.isGrounded) {
@@ -1218,9 +1225,21 @@ export class Enemy {
         PerfMonitor.end('enemy sprite draw');
         this._spriteTopY = res ? res.originY : null;
 
-        // Silver-blue motion trail while dashing (graceful speed, not smoke).
-        if (this.moveState === MoveState.DASHING && !PerfMonitor.shouldSkip('enemyParryVFX')) {
-            this.drawDashTrail(ctx, frame, pixelSize, flip, spritePalette);
+        // Jump takeoff / landing support VFX. Render-only ground-transition detect:
+        // reads isGrounded/velocityY, never writes physics.
+        if (this._prevGroundedVFX === undefined) this._prevGroundedVFX = this.isGrounded;
+        if (this.isGrounded && !this._prevGroundedVFX) { this._landDustTimer = 8; this._landDustX = this.x; this._landDustY = feetY; }
+        if (!this.isGrounded && this._prevGroundedVFX && this.velocityY < 0) { this._takeoffTimer = 6; this._takeoffX = this.x; this._takeoffY = feetY; }
+        this._prevGroundedVFX = this.isGrounded;
+        if (!PerfMonitor.shouldSkip('enemyParryVFX')) {
+            if (this._takeoffTimer > 0) {
+                SpriteManager.drawHeroTakeoffMotes(ctx, this._takeoffX, this._takeoffY, { progress: 1 - this._takeoffTimer / 6 });
+                this._takeoffTimer--;
+            }
+            if (this._landDustTimer > 0) {
+                SpriteManager.drawLandingDust(ctx, this._landDustX, this._landDustY, { progress: 1 - this._landDustTimer / 8 });
+                this._landDustTimer--;
+            }
         }
 
         // Combat-readability overlays.
@@ -1228,7 +1247,7 @@ export class Enemy {
         if (!PerfMonitor.shouldSkip('enemyParryVFX')) {
             if (dodging) this.drawDodgeAura(ctx);
             if (this.moveState === MoveState.ATTACK_WINDUP) this.drawTelegraph(ctx);
-            // The holy sword-arc rides the active strike frames of the melee combo.
+            // The pixel-art cold-sanctity sword-arc rides the melee combo's active frames.
             if (this.moveState === MoveState.ATTACKING && this._comboPhase === 'active') this.drawSlashArc(ctx);
             if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
             if (inCounter) this.drawCounterBurst(ctx);
@@ -1265,14 +1284,14 @@ export class Enemy {
         ctx.restore();
     }
 
-    // The Hero's holy sword-arc — a clean light-infused crescent that sweeps
-    // through the active frames of each melee-combo hit. Reads existing combo
-    // state ONLY (index/phase/timer); it never alters reach, damage, or timing.
+    // The Hero's pixel-art cold-sanctity sword-arc — a white-core blue crescent that
+    // sweeps through the ACTIVE frames of each melee-combo hit (gather -> crisp strike
+    // -> shard dissolve, via `progress`). Reads combo state ONLY; finisher = double edge.
     drawSlashArc(ctx) {
         const h = COMBO.HITS[this._comboIndex];
         if (!h) return;
         const progress = h.active > 0 ? 1 - this._comboPhaseTimer / h.active : 1;
-        const heavy = this._comboIndex === COMBO.HITS.length - 1;   // the finisher carves wider
+        const heavy = this._comboIndex === COMBO.HITS.length - 1;
         const cx = this.x + this.facing * (this.radius * 0.3);
         const cy = this.y - this.radius * 0.15;
         SpriteManager.drawHolySlash(ctx, cx, cy, this.facing, progress, {
@@ -1282,117 +1301,45 @@ export class Enemy {
         });
     }
 
-    // Silver-blue afterimage trail while dashing — graceful speed support, drawn
-    // as a few fading tinted copies of the current sprite behind the travel
-    // direction. Rendering only; dash distance / duration are unchanged.
-    drawDashTrail(ctx, frame, pixelSize, flip, spritePalette) {
-        const dir = Math.sign(this.velocityX) || this.facing;
-        const feetY = this.y + this.halfHeight;
-        const copies = PerfMonitor.isPerfVfx() ? 1 : (PerfMonitor.isLiteVfx() ? 2 : 3);
-        for (let i = copies; i >= 1; i--) {
-            const ox = this.x - dir * i * 9;
-            SpriteManager.drawSprite(ctx, frame, ox, feetY, {
-                pixelSize, flip, palette: spritePalette,
-                tint: '#9fd4ff', alpha: 0.16 * i / copies,
-            });
-        }
-    }
-
-    // Icy dodge/roll aura signalling the Hero's invulnerability window — a clean
-    // twin ring (soft icy halo + crisp white-blue inner) instead of glow spam.
+    // Dodge/roll i-frame tell — a few marching icy PIXEL ticks around the silhouette
+    // (the roll motion itself is carried by the dash streaks). Pixel-art, no glow ring.
     drawDodgeAura(ctx) {
         const pct = this.iFrames / this.iFrameDuration; // 1 -> 0
-        const r = this.radius + 8 + (1 - pct) * 10;     // expands slightly as it fades (unchanged feel)
+        const r = this.radius + 6 + (1 - pct) * 8;
+        const frame = Math.floor(performance.now() / 70);
         ctx.save();
-        ctx.translate(this.x, this.y);
-        // soft icy-blue halo
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = `rgba(150, 214, 255, ${0.18 + 0.32 * pct})`;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(120, 205, 255, 0.7)';
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.stroke();
-        // crisp white-blue inner ring
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = `rgba(226, 246, 255, ${0.40 + 0.40 * pct})`;
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = 'rgba(200, 235, 255, 0.8)';
-        ctx.beginPath();
-        ctx.arc(0, 0, r - 4, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.translate(Math.round(this.x), Math.round(this.y));
+        ctx.shadowBlur = 0;
+        const PX = 3;
+        for (let a = 0; a < 8; a++) {
+            if ((a + frame) % 2 !== 0) continue;             // marching flicker
+            const th = a / 8 * Math.PI * 2;
+            ctx.fillStyle = (a % 2 === 0) ? '#eaf6ff' : '#7fd4ff';
+            ctx.fillRect(Math.round(Math.cos(th) * r / PX) * PX, Math.round(Math.sin(th) * r / PX) * PX, PX, PX);
+        }
         ctx.restore();
     }
 
-    // 3. Pulsing YELLOW aura + a brace arc — the parry-stance tell.
+    // Parry STANCE tell — a faint pulsing inner PIXEL ring (bible §6), cold-sanctity.
     drawParryAura(ctx) {
-        const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 90);
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = `rgba(255, 210, 70, ${0.45 + 0.35 * pulse})`;
-        ctx.shadowBlur = 16;
-        ctx.shadowColor = 'rgba(255, 200, 60, 0.9)';
-        ctx.beginPath();
-        ctx.arc(0, 0, this.radius + 12, 0, Math.PI * 2);
-        ctx.stroke();
-        // Brace arc in the facing direction.
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = `rgba(255, 230, 140, ${0.6 + 0.3 * pulse})`;
-        const base = this.facing === 1 ? 0 : Math.PI;
-        ctx.beginPath();
-        ctx.arc(0, 0, this.radius + 20, base - Math.PI * 0.35, base + Math.PI * 0.35);
-        ctx.stroke();
-        ctx.restore();
+        SpriteManager.drawParryRing(ctx, this.x, this.y, { radius: this.radius + 24, stance: true });
     }
 
-    // 3. Expanding golden ring — the circular counter erupting.
+    // Parry COUNTER eruption — the full pixel ring + white cardinal highlights +
+    // gold-tipped diagonal sparks, expanding over the active frames. Radius maps to
+    // COUNTER.WIDTH for readability; hitbox extents / i-frames are unchanged.
     drawCounterBurst(ctx) {
         const prog = clamp(1 - this._counterTimer / COUNTER.ACTIVE, 0, 1);
-        const r = (this.radius + 6) + prog * (COUNTER.WIDTH / 2 - this.radius);
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.globalAlpha = 0.4 * (1 - prog);
-        ctx.fillStyle = '#fff3c4';
-        ctx.beginPath();
-        ctx.arc(0, 0, r * 0.92, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 0.85 * (1 - prog);
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = '#ffe08a';
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = 'rgba(255, 200, 60, 1)';
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+        SpriteManager.drawParryRing(ctx, this.x, this.y, { radius: COUNTER.WIDTH / 2, progress: prog });
     }
 
-    // 4. Downward light-chevron shock under the Hero during the pogo dive —
-    //    a crisp icy chevron with a white-hot core (clean, not muddy).
+    // Downward pixel-art cold-sanctity crescent under the Hero during the pogo dive
+    // (bible §6: "pogo = rotated down"). Cosmetic; the pogo hitbox is unchanged.
     drawPogoStrike(ctx) {
         if (!this.attackHitbox.isActive) return;
-        const y = this.y + POGO.REACH_DOWN;
-        const w = POGO.WIDTH / 2;
-        ctx.save();
-        ctx.translate(this.x, y);
-        // outer icy chevron
-        ctx.globalAlpha = 0.85;
-        ctx.strokeStyle = 'rgba(150, 214, 255, 0.9)';
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = 'rgba(120, 205, 255, 0.8)';
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(-w, -8); ctx.lineTo(0, 12); ctx.lineTo(w, -8);
-        ctx.stroke();
-        // white-hot inner chevron
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.shadowBlur = 5;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-w + 3, -6); ctx.lineTo(0, 9); ctx.lineTo(w - 3, -6);
-        ctx.stroke();
-        ctx.restore();
+        SpriteManager.drawHolySlash(ctx, this.x, this.y + POGO.REACH_DOWN * 0.6, 1, 0.55, {
+            reach: 0, size: POGO.WIDTH * 1.1, rot: Math.PI / 2,
+        });
     }
 
     // 5. Orbiting stars above the Hero's head while fear-stunned.
@@ -1416,8 +1363,8 @@ export class Enemy {
     }
 
     // 2. Light-wave projectiles — rendered with the procedural Holy Light Wave
-    //    (SpriteManager.drawLightWave): a massive cool-white / icy-blue crescent
-    //    slash per waveType (1 diagonal, 2 vertical, 3 X-cross). Travel direction is read
+    //    (SpriteManager.drawLightWave): a pixel-art cold-sanctity crescent per
+    //    waveType (1 diagonal, 2 vertical, 3 X-cross). Travel direction is read
     //    from velocityX's sign (waves carry no explicit facing); alpha fades the
     //    slash over its lifetime. Rendering ONLY — speeds / damage / hitbox sizes
     //    are untouched.
@@ -1428,7 +1375,8 @@ export class Enemy {
             const facing = Math.sign(p.velocityX) || 1;      // direction the wave travels
             PerfMonitor.start('enemy holy light wave');
             if (!PerfMonitor.shouldSkip('enemyHolyLightWave')) {
-                SpriteManager.drawLightWave(ctx, p.x, p.y, p.waveType, facing, { alpha });
+                // `life` = existing lifeProgress (read-only) drives gather->crescent->dissolve.
+                SpriteManager.drawLightWave(ctx, p.x, p.y, p.waveType, facing, { alpha, life: p.lifeProgress });
             }
             PerfMonitor.end('enemy holy light wave');
         }

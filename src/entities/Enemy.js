@@ -244,6 +244,30 @@ const FEAR = Object.freeze({
     HOP: 2,                  // tiny upward stagger so the crumple reads, then gravity drops it
 });
 
+// ---------------------------------------------------------------------------
+// STAGE 7A-1 — the Hero's reaction to the Boss's AFK Intimidation state
+// (tools/redesign/afk_spec.md §7). Two parts, both STRICTLY TEMPORARY:
+//
+//   * the barrier PUSH — a harmless repulsion impulse. 0 damage, 0 HP change,
+//     no stun, no i-frames, no fear, no score/kill credit. If the Hero is shoved
+//     into a wall it ricochets ONCE (WALL_REFLECT) and never gets trapped.
+//   * the WARY standoff — while `_intimidated` the whole AI switch is bypassed:
+//     no approach, no melee, no cast, no parry, no jump, no dash. It holds
+//     distance and braces. The flag is released the frame the Boss's state ends,
+//     and NOTHING about the Hero's stats or aggression is permanently changed.
+// ---------------------------------------------------------------------------
+const INTIMIDATION = Object.freeze({
+    PUSH_IMPULSE: 26,    // horizontal repulsion velocity (0 damage)
+    PUSH_LIFT: 6,        // slight pop so the shove reads off the ground
+    PUSH_FRAMES: 18,     // frames the Hero rides the shove before the AI resumes
+    PUSH_FRICTION: 0.92, // velocity bleed while riding it
+    WALL_REFLECT: 0.55,  // afk_spec §7: wall contact reflects velocity (~x0.55)
+    WALL_LIFT: 5,        // small ricochet arc
+    WALL_VFX_FRAMES: 14, // steel rim flash + chevrons + dust at the wall
+    WARY_GAP: 260,       // hold at least this edge-gap from the Boss while intimidated
+    WARY_BACK_MULT: 0.9, // back-off speed as a fraction of maxSpeed
+});
+
 export class Enemy {
     constructor(x, y) {
         this.x = x;
@@ -350,9 +374,108 @@ export class Enemy {
         this.hitFlash = 0;
         this.hitFlashDuration = 8;
 
+        // --- STAGE 7A-1: Boss AFK Intimidation reaction (temporary; see INTIMIDATION) ---
+        this._intimidated = false;    // mirrored from player.isIntimidating every PLAYING frame
+        this._intimPushTimer = 0;     // frames riding the harmless barrier shove
+        this._intimBounced = false;   // one ricochet per shove -> no infinite wall bouncing
+        this._wallVfxTimer = 0;       // render-only wall-impact flash
+        this._wallVfxX = 0;
+        this._wallVfxDir = 1;
+
         // --- Pixel-art rendering (visual only) ---
         this.anim = new SpriteAnimator(HERO_SHEET);
         this._spriteTopY = null;
+    }
+
+    // === STAGE 7A-1: AFK Intimidation reaction ==============================
+
+    get isIntimidated() { return this._intimidated; }
+
+    /**
+     * Mirror the Boss's intimidation state. Call ONCE PER FRAME from main.js with
+     * `player.isIntimidating`. On the rising edge the Hero abandons whatever it was
+     * doing (no damage, no HP change); while true its AI is bypassed entirely; on
+     * the falling edge normal behaviour resumes with nothing permanently altered.
+     */
+    setIntimidated(on) {
+        const next = on === true;
+        if (next && !this._intimidated) this._breakForIntimidation();
+        this._intimidated = next;
+    }
+
+    // Drop every action in progress so the Hero can't keep swinging / casting into
+    // the barrier. Mirrors takeDamage()'s interrupt block MINUS the damage and the
+    // knockback. Nothing here changes stats, damage or cooldown VALUES.
+    _breakForIntimidation() {
+        this.moveState = MoveState.WALKING;
+        this._dashTimer = 0;
+        this._attackWindup = 0;
+        this._comboIndex = 0;
+        this._comboPhase = 'windup';
+        this._comboPhaseTimer = 0;
+        this._castIndex = 0;
+        this._castPhase = 'windup';
+        this._castPhaseTimer = 0;
+        this._parryTimer = 0;
+        this._counterTimer = 0;
+        this.attackHitbox.activeTimer = 0;   // close any live damage window
+        this._resetMeleeHitbox();            // undo a counter/pogo reshape
+        this._repositionAfterAttack = false;
+    }
+
+    /**
+     * The Boss's black barrier sweeps over the Hero: a pure repulsion impulse away
+     * from the Boss. HARMLESS BY CONSTRUCTION — this never calls takeDamage(), never
+     * touches hp / iFrames / fear timers, and grants no kill or score credit.
+     *
+     * @param {number} dir -1 / +1, away from the Boss.
+     */
+    applyIntimidationPush(dir = 1) {
+        const d = dir >= 0 ? 1 : -1;
+        this._intimPushTimer = INTIMIDATION.PUSH_FRAMES;
+        this._intimBounced = false;
+        this.velocityX = d * INTIMIDATION.PUSH_IMPULSE;
+        this.velocityY = -INTIMIDATION.PUSH_LIFT;
+        this.isGrounded = false;
+        this.moveState = MoveState.WALKING;
+        this._dashTimer = 0;
+        this._repositionAfterAttack = false;
+    }
+
+    /**
+     * Called by main.js's world-bound clamp when the Hero is pinned against a side
+     * wall. While riding the barrier shove the Hero RICOCHETS off the wall instead
+     * of sticking to it — exactly once per shove (`_intimBounced`), with the
+     * velocity reflected and damped, so there is no jitter and no bounce loop.
+     * No damage is dealt by the wall.
+     *
+     * @param {number} inwardDir +1 if the wall is on the Hero's left, -1 if right.
+     * @returns {boolean} true if the impact was consumed (caller must NOT zero vx).
+     */
+    onWallImpact(inwardDir) {
+        if (this._intimPushTimer <= 0 || this._intimBounced) return false;
+        this._intimBounced = true;
+        const d = inwardDir >= 0 ? 1 : -1;
+        this.velocityX = d * Math.abs(this.velocityX) * INTIMIDATION.WALL_REFLECT;
+        this.velocityY = -INTIMIDATION.WALL_LIFT;
+        this.isGrounded = false;
+        this._wallVfxTimer = INTIMIDATION.WALL_VFX_FRAMES;
+        this._wallVfxX = this.x - d * this.halfWidth;   // the wall FACE the Hero struck
+        this._wallVfxDir = d;
+        return true;
+    }
+
+    // Wary standoff: face the Boss, refuse to close, back off if it is too near.
+    // No attack / cast / parry / jump / dash can start from here.
+    _waryStep(dirToPlayer, edgeGap) {
+        this.facing = dirToPlayer;
+        this.moveState = MoveState.WALKING;
+        if (edgeGap < INTIMIDATION.WARY_GAP) {
+            this.velocityX = -dirToPlayer * this.maxSpeed * INTIMIDATION.WARY_BACK_MULT;
+        } else {
+            this.velocityX *= this.knockbackFriction;
+            if (Math.abs(this.velocityX) < 0.05) this.velocityX = 0;
+        }
     }
 
     getCenter() {
@@ -769,6 +892,7 @@ export class Enemy {
         if (this._airAttackCooldown > 0) this._airAttackCooldown--;
         if (this._parryCooldown > 0) this._parryCooldown--;
         if (this._fearImmuneTimer > 0) this._fearImmuneTimer--;
+        if (this._wallVfxTimer > 0) this._wallVfxTimer--;
         if (this.fearDebuffTimer > 0) this.fearDebuffTimer--; // 4s fear DEBUFF bleeds down here, independent of the stun
         this.attackHitbox.tick(); // advance the shared weapon's active/cooldown timers
 
@@ -806,6 +930,14 @@ export class Enemy {
             // Recover the instant the stun ends: the FSM switch has no FEAR case,
             // so without this the Hero would stay frozen in FEAR forever.
             if (this.fearStunTimer <= 0) this.moveState = MoveState.WALKING;
+        } else if (this._intimPushTimer > 0) {
+            // STAGE 7A-1: riding the Boss's harmless barrier shove. No AI, no damage.
+            // Gravity + the world-bound clamp (which calls onWallImpact) do the rest.
+            this._intimPushTimer--;
+            this.velocityX *= INTIMIDATION.PUSH_FRICTION;
+            this.moveState = MoveState.WALKING;
+            this._dashTimer = 0;
+            this._repositionAfterAttack = false;
         } else if (this.knockbackTimer > 0) {
             // Knocked back: ride the bounce velocity (friction) instead of pursuing.
             this.knockbackTimer--;
@@ -814,6 +946,11 @@ export class Enemy {
             this._dashTimer = 0;
             this._attackWindup = 0;
             this._repositionAfterAttack = false;
+        } else if (this._intimidated) {
+            // STAGE 7A-1: WARY standoff. The whole AI switch below is bypassed, so
+            // the Hero cannot approach, attack, cast, parry, jump or dash while the
+            // Boss holds its planted intimidation. Released the frame the state ends.
+            this._waryStep(dirToPlayer, edgeGap);
         } else {
             switch (this.moveState) {
                 case MoveState.WALKING: {
@@ -1148,6 +1285,13 @@ export class Enemy {
     _animState() {
         const ms = this.moveState;
         if (this.fearStunTimer > 0) return { name: this._clip('hurt', 'fall', 'roll'), hold: 6 };
+        // STAGE 7A-1: braced standoff — only once the shove has settled and the Hero
+        // is planted. Mid-shove / airborne it still reads as fall/run, so the push
+        // stays legible and the Hero never looks defeated (afk_spec §7).
+        if (this._intimidated && this.isGrounded && this._intimPushTimer <= 0 &&
+            Math.abs(this.velocityX) < 0.9) {
+            return { name: this._clip('brace', 'parry', 'idle'), hold: 10 };
+        }
         if (ms === MoveState.PARRY_COUNTER) return { name: this._clip('parry_counter', 'attack'), hold: 2 };
         if (ms === MoveState.PARRY_STANCE)  return { name: this._clip('parry', 'guard', 'idle'), hold: 8 };
         if (ms === MoveState.CASTING)       return { name: this._clip('cast', 'attack'), hold: 4 };
@@ -1192,6 +1336,14 @@ export class Enemy {
         const inCounter = this.moveState === MoveState.PARRY_COUNTER;
         const dodging = this.iFrames > 0 && !inCounter && this.fearStunTimer <= 0;
 
+        // Sprite VISUAL centre. The 48px art is taller than the 30px collision box,
+        // so this.y (the collision centre) sits ~9px BELOW the figure's middle. Body-
+        // framing VFX (dash streaks, parry ring, counter burst, dodge ticks, sword arc)
+        // anchor HERE so they read as centred on the knight instead of hugging its hips
+        // and bulging below its feet. Render-only: hitboxes stay on this.y (unchanged).
+        const bodyCY = feetY - (frame.length * pixelSize) / 2;
+        this._bodyCY = bodyCY;
+
         // Tint: white hit-flash; dazed grey while feared; white/icy-blue dash-windup flicker.
         let tint = null;
         if (this.hitFlash > 0) tint = '#ffffff';
@@ -1206,8 +1358,10 @@ export class Enemy {
         PerfMonitor.end('enemy projectiles');
 
         // Silver-blue dash streaks + stepped afterimages — drawn BEHIND the sprite.
+        // Streak bundle + leading tip ride the sprite centre (bodyCY); the afterimage
+        // sprite copies still use feetY so they stand on the ground.
         if (this.moveState === MoveState.DASHING && !PerfMonitor.shouldSkip('enemyParryVFX')) {
-            SpriteManager.drawHeroDashStreaks(ctx, this.x, this.y, Math.sign(this.velocityX) || this.facing, {
+            SpriteManager.drawHeroDashStreaks(ctx, this.x, bodyCY, Math.sign(this.velocityX) || this.facing, {
                 frame, pixelSize, flip, palette: spritePalette, feetY,
             });
         }
@@ -1253,6 +1407,20 @@ export class Enemy {
             if (inCounter) this.drawCounterBurst(ctx);
             if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
             if (this.fearStunTimer > 0) this.drawFearStun(ctx);
+
+            // STAGE 7A-1 — the wall ricochet (steel rim flash + umbral chevrons +
+            // warm stone dust: repulsion, NOT a damaging hit) and the cold
+            // hesitation arc marking the line the Hero will not cross.
+            if (this._wallVfxTimer > 0) {
+                SpriteManager.drawWallRepulse(ctx, this._wallVfxX, feetY, this._wallVfxDir, {
+                    progress: 1 - this._wallVfxTimer / INTIMIDATION.WALL_VFX_FRAMES,
+                    height: frame.length * pixelSize,
+                });
+            }
+            if (this._intimidated && this.isGrounded && this._intimPushTimer <= 0 &&
+                this.fearStunTimer <= 0) {
+                SpriteManager.drawHesitationArc(ctx, this.x, feetY, this.facing, { px: pixelSize });
+            }
         }
         PerfMonitor.end('enemy parry aura / counter VFX');
 
@@ -1293,7 +1461,9 @@ export class Enemy {
         const progress = h.active > 0 ? 1 - this._comboPhaseTimer / h.active : 1;
         const heavy = this._comboIndex === COMBO.HITS.length - 1;
         const cx = this.x + this.facing * (this.radius * 0.3);
-        const cy = this.y - this.radius * 0.15;
+        // Sit the arc on the low-forward blade: just below the sprite centre (bodyCY),
+        // not on the collision centre (which reads low around the legs).
+        const cy = (this._bodyCY ?? this.y) + this.radius * 0.25;
         SpriteManager.drawHolySlash(ctx, cx, cy, this.facing, progress, {
             reach: h.reachOff,
             size: (h.width + h.height) * 0.62,   // blade scale tracks the hit's hitbox shape (visual only)
@@ -1308,7 +1478,7 @@ export class Enemy {
         const r = this.radius + 6 + (1 - pct) * 8;
         const frame = Math.floor(performance.now() / 70);
         ctx.save();
-        ctx.translate(Math.round(this.x), Math.round(this.y));
+        ctx.translate(Math.round(this.x), Math.round(this._bodyCY ?? this.y));
         ctx.shadowBlur = 0;
         const PX = 3;
         for (let a = 0; a < 8; a++) {
@@ -1321,8 +1491,9 @@ export class Enemy {
     }
 
     // Parry STANCE tell — a faint pulsing inner PIXEL ring (bible §6), cold-sanctity.
+    // Centred on the sprite body (bodyCY), not the low collision centre.
     drawParryAura(ctx) {
-        SpriteManager.drawParryRing(ctx, this.x, this.y, { radius: this.radius + 24, stance: true });
+        SpriteManager.drawParryRing(ctx, this.x, this._bodyCY ?? this.y, { radius: this.radius + 24, stance: true });
     }
 
     // Parry COUNTER eruption — the full pixel ring + white cardinal highlights +
@@ -1330,7 +1501,7 @@ export class Enemy {
     // COUNTER.WIDTH for readability; hitbox extents / i-frames are unchanged.
     drawCounterBurst(ctx) {
         const prog = clamp(1 - this._counterTimer / COUNTER.ACTIVE, 0, 1);
-        SpriteManager.drawParryRing(ctx, this.x, this.y, { radius: COUNTER.WIDTH / 2, progress: prog });
+        SpriteManager.drawParryRing(ctx, this.x, this._bodyCY ?? this.y, { radius: COUNTER.WIDTH / 2, progress: prog });
     }
 
     // Downward pixel-art cold-sanctity crescent under the Hero during the pogo dive

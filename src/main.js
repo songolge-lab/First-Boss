@@ -163,15 +163,42 @@ function resolveFloorCollision(entity) {
 }
 
 // Keep an entity inside the horizontal world bounds (invisible side walls).
+//
+// STAGE 7A-1: an entity may opt into a WALL IMPACT reaction via `onWallImpact`.
+// The Hero uses it to ricochet off the wall while riding the Boss's harmless
+// intimidation barrier (it consumes the impact and keeps its own reflected
+// velocity). Returning false — or not defining the hook at all, as the Boss
+// does — keeps the original behaviour byte-for-byte: the entity simply stops.
 function clampToWorld(entity) {
     const min = entity.halfWidth;
     const max = WORLD_WIDTH - entity.halfWidth;
     if (entity.x < min) {
         entity.x = min;
-        if (entity.velocityX < 0) entity.velocityX = 0;
+        if (entity.velocityX < 0) {
+            const bounced = typeof entity.onWallImpact === 'function' && entity.onWallImpact(1);
+            if (!bounced) entity.velocityX = 0;
+        }
     } else if (entity.x > max) {
         entity.x = max;
-        if (entity.velocityX > 0) entity.velocityX = 0;
+        if (entity.velocityX > 0) {
+            const bounced = typeof entity.onWallImpact === 'function' && entity.onWallImpact(-1);
+            if (!bounced) entity.velocityX = 0;
+        }
+    }
+}
+
+// STAGE 7A-1 — the Boss's AFK intimidation barrier (tools/redesign/afk_spec.md §4).
+// The pressure walls live in `player.afkWaves` as plain {x,y,halfWidth,halfHeight}
+// objects, deliberately OUTSIDE player.getActiveHitboxes(), so handleCombat() can
+// never see them: the shove is harmless by construction — no damage, no score, no
+// combo reward, no kill credit. Each wall pushes the Hero at most once.
+function resolveIntimidationBarrier() {
+    if (!player.afkWaves || !player.afkWaves.length || !enemy) return;
+    for (const wave of player.afkWaves) {
+        if (wave.pushedHero || !entitiesIntersect(wave, enemy)) continue;
+        wave.pushedHero = true;
+        const away = Math.sign(enemy.x - player.x) || wave.dir;
+        enemy.applyIntimidationPush(away);
     }
 }
 
@@ -185,12 +212,23 @@ const states = {
             // auto-act the instant control returns.
             input.consumeJump();
             input.consumeDash();
+            // The AFK clock only runs while the player actually has control, so a
+            // long cinematic can never bank inactivity frames toward the trigger —
+            // nor strand a live intimidation state across the Nemesis card.
+            player.cancelIntimidation();
+            if (enemy) enemy.setIntimidated(false);
         },
         update() {
             // Player can only move/jump/dash/attack here: player.update is gated to PLAYING.
             PerfMonitor.start('player update');
             player.update(input);
             PerfMonitor.end('player update');
+
+            // STAGE 7A-1: resolve the Boss's intimidation barrier BEFORE the Hero's
+            // update, so the harmless shove is integrated (and can ricochet off a
+            // wall in clampToWorld) on the very frame the barrier reaches it.
+            resolveIntimidationBarrier();
+            enemy.setIntimidated(player.isIntimidating);
 
             PerfMonitor.start('enemy update');
             enemy.update(player.x, player.y);
@@ -487,6 +525,18 @@ function draw() {
         // buffer size here would double-apply the scale.
         SpriteManager.drawFearScreenEffect(ctx, width, height, {
             intensity: Math.min(1, enemy.fearStatusTimer / 24),
+        });
+    }
+
+    // STAGE 7A-2C — the AFK intimidation "curse-pressure" darkening (afk2_spec §A).
+    // Screen space: cursed tongues, void-folds, side pressure and drifting petals
+    // press in from every edge (corners deepest, where they overlap), while the
+    // centre and the whole combat band stay readable. `cursePhase` breathes the
+    // edges on the state's own clock; the ramp in/out rides player.afkVignette.
+    if (player.afkVignette > 0) {
+        SpriteManager.drawIntimidationVignette(ctx, width, height, {
+            intensity: player.afkVignette,
+            phase: player.cursePhase,
         });
     }
 

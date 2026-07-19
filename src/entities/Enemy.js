@@ -57,12 +57,16 @@
 import { Hitbox } from '../core/Hitbox.js';
 import { SpriteManager, SpriteAnimator, HERO_SPRITES, HERO_PIXEL,
          HERO_IDLE_PIXEL, HERO_REDESIGN_PALETTE, HERO_REDESIGN_SPRITES } from '../core/SpriteManager.js';
+// STAGE 8C-4 — the MERIDIAN LOOP (Hero Combo A) sequence controller + its approved
+// body clips. Self-contained: it drives its own step->state clock and world-space
+// effects, so wiring it here does NOT touch the DAYBREAK combo's FSM phase-indexing.
+import { HeroComboA, HERO_COMBO_A_SPRITES, COMBO_A_SELECT_CHANCE, COMBO_A_COOLDOWN } from './HeroComboA.js';
 
 // Rendering sheet: the redesigned clips merged OVER the legacy HERO_SPRITES. Used for
 // both the animator AND _clip() so the new combat state names (cast/parry/parry_counter/
 // air_attack/hurt) resolve to real redesigned clips; any name absent here still falls
 // back to the legacy sheet. Rendering-only — no AI/physics/timing depends on this.
-const HERO_SHEET = { ...HERO_SPRITES, ...HERO_REDESIGN_SPRITES };
+const HERO_SHEET = { ...HERO_SPRITES, ...HERO_REDESIGN_SPRITES, ...HERO_COMBO_A_SPRITES };
 import { PerfMonitor } from '../core/PerfMonitor.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -79,6 +83,7 @@ export const MoveState = Object.freeze({
     JUMPING: 'JUMPING',             // airborne, air-control + deciding whether to dive
     AIR_ATTACK: 'AIR_ATTACK',       // airborne DOWN-strike (the pogo strike)
     FEAR: 'FEAR',                   // crumpled on the ground, stunned by a Fear Strike
+    COMBO_A: 'COMBO_A',             // STAGE 8C-4 — the MERIDIAN LOOP combo variant (self-contained)
 });
 
 // ---------------------------------------------------------------------------
@@ -331,6 +336,13 @@ export class Enemy {
         this._comboStep = 0;                  // lunge speed for the current active window
         this._comboCooldown = 0;
 
+        // --- 1b. STAGE 8C-4 — MERIDIAN LOOP (Combo A) variant. Self-contained controller
+        // (own step clock + dive arc + slash projectile + chase + pillar + teleport).
+        // Kept on its OWN cooldown so it stays an occasional stand-in for the 4-hit
+        // chain, never a replacement. All its state lives inside the controller. ---
+        this._comboA = new HeroComboA(this);
+        this._comboACooldown = 0;
+
         // --- 2. Light-wave magic bookkeeping ---
         this._castIndex = 0;                  // 0..2 (which wave to emit next)
         this._castPhase = 'windup';           // 'windup' | 'emit' | 'recover'
@@ -408,6 +420,7 @@ export class Enemy {
     // knockback. Nothing here changes stats, damage or cooldown VALUES.
     _breakForIntimidation() {
         this.moveState = MoveState.WALKING;
+        if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
         this._dashTimer = 0;
         this._attackWindup = 0;
         this._comboIndex = 0;
@@ -618,6 +631,26 @@ export class Enemy {
         this._comboIndex = 0;
         this._comboPhase = 'windup';
         this._comboPhaseTimer = COMBO.HITS[0].windup;
+    }
+
+    // STAGE 8C-4 — MERIDIAN LOOP (Combo A) selection + entry. An additional in-range
+    // melee choice, gated so it never dominates. Grounded-only: the opener and the
+    // dive both start from the floor (and the controller captures the floor line here).
+    _canStartComboA() {
+        return (
+            this._comboA &&
+            this.isGrounded &&
+            this._comboACooldown <= 0 &&
+            Math.random() < COMBO_A_SELECT_CHANCE
+        );
+    }
+
+    _startComboA(dir) {
+        this.facing = dir;                 // facing LOCKS for the whole loop (baitable)
+        this.velocityX = 0;
+        this.moveState = MoveState.COMBO_A;
+        this._comboACooldown = COMBO_A_COOLDOWN;
+        this._comboA.start();
     }
 
     _configureComboHit(i) {
@@ -852,6 +885,7 @@ export class Enemy {
         this.moveState = MoveState.FEAR;
 
         // Cancel everything the Hero was mid-way through.
+        if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
         this.knockbackTimer = 0;
         this._dashTimer = 0;
         this._attackWindup = 0;
@@ -887,6 +921,7 @@ export class Enemy {
         if (this.iFrames > 0) this.iFrames--;
         if (this.dashCooldown > 0) this.dashCooldown--;
         if (this._comboCooldown > 0) this._comboCooldown--;
+        if (this._comboACooldown > 0) this._comboACooldown--;
         if (this._castCooldown > 0) this._castCooldown--;
         if (this._jumpCooldown > 0) this._jumpCooldown--;
         if (this._airAttackCooldown > 0) this._airAttackCooldown--;
@@ -993,7 +1028,12 @@ export class Enemy {
                     // f) deterministic melee / approach / spacing
                     if (this._meleeReady()) {
                         if (edgeGap <= COMBO.GAP_PX) {
-                            this._startCombo(dirToPlayer);                 // in range -> 4-hit combo
+                            // In range: usually the 4-hit DAYBREAK chain, but occasionally the
+                            // MERIDIAN LOOP variant (Combo A) stands in. Combo A NEVER replaces
+                            // the chain — it is gated behind its own chance + cooldown so it
+                            // stays a spice, not the staple.
+                            if (this._canStartComboA()) this._startComboA(dirToPlayer);
+                            else this._startCombo(dirToPlayer);
                         } else if (this.canDash(dist)) {
                             this._startDash(dirToPlayer);                  // big gap -> dash in
                         } else {
@@ -1175,6 +1215,18 @@ export class Enemy {
                     }
                     break;
                 }
+
+                case MoveState.COMBO_A: {
+                    // STAGE 8C-4 — the whole 5-step MERIDIAN LOOP runs inside the
+                    // controller (its own step clock, dive arc, forward chase, slash
+                    // projectile, pillar + teleport return). It writes velocityX / y /
+                    // facing here; the post-switch integration and main.js floor/wall
+                    // resolution then apply exactly as for every other state. When the
+                    // sequence finishes (or self-cleans on interrupt) it clears `active`.
+                    this._comboA.update();
+                    if (!this._comboA.active) this.moveState = MoveState.WALKING;
+                    break;
+                }
             }
         }
 
@@ -1253,6 +1305,7 @@ export class Enemy {
 
         // A hit interrupts ANY action in progress.
         this.moveState = MoveState.WALKING;
+        if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
         this._dashTimer = 0;
         this._attackWindup = 0;
         this._comboPhaseTimer = 0;
@@ -1284,6 +1337,8 @@ export class Enemy {
 
     _animState() {
         const ms = this.moveState;
+        // STAGE 8C-4 — MERIDIAN LOOP owns its frame (index-driven, per its step clock).
+        if (ms === MoveState.COMBO_A && this._comboA.active) return this._comboA.animFrame();
         if (this.fearStunTimer > 0) return { name: this._clip('hurt', 'fall', 'roll'), hold: 6 };
         // STAGE 7A-1: braced standoff — only once the shove has settled and the Hero
         // is planted. Mid-shove / airborne it still reads as fall/run, so the push
@@ -1356,6 +1411,16 @@ export class Enemy {
         PerfMonitor.start('enemy projectiles');
         if (!PerfMonitor.shouldSkip('enemyProjectiles')) this.drawWaveProjectiles(ctx);
         PerfMonitor.end('enemy projectiles');
+
+        // STAGE 8C-4 — MERIDIAN LOOP world-space effects (the slash projectile, the
+        // corridor bed, the floor-pinned pillar, the reform snap). Same seam as the
+        // light waves, drawn BEHIND the body. The four grids are the ONLY source of
+        // these visuals (no legacy slash/pillar fires for the same beat).
+        if (this._comboA.active) {
+            PerfMonitor.start('enemy comboA fx');
+            if (!PerfMonitor.shouldSkip('enemyProjectiles')) this._comboA.drawWorldEffects(ctx);
+            PerfMonitor.end('enemy comboA fx');
+        }
 
         // Silver-blue dash streaks + stepped afterimages — drawn BEHIND the sprite.
         // Streak bundle + leading tip ride the sprite centre (bodyCY); the afterimage

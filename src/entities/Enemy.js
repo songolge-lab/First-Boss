@@ -61,12 +61,35 @@ import { SpriteManager, SpriteAnimator, HERO_SPRITES, HERO_PIXEL,
 // body clips. Self-contained: it drives its own step->state clock and world-space
 // effects, so wiring it here does NOT touch the DAYBREAK combo's FSM phase-indexing.
 import { HeroComboA, HERO_COMBO_A_SPRITES, COMBO_A_SELECT_CHANCE, COMBO_A_COOLDOWN } from './HeroComboA.js';
+// STAGE 8C-5 — DRAGON WRATH + HERO COMBO B. Like Combo A, a fully self-contained
+// sequence controller (its own 201-tick master clock, the two empowered swings, the
+// 1.5 s crown charge, and the world-space DRAGONFALL finisher + its screen treatment).
+// Wiring it here does NOT touch the DAYBREAK combo's FSM phase-indexing or Combo A.
+import { HeroDragonWrath, HERO_DRAGON_WRATH_SPRITES,
+         DRAGON_WRATH_COOLDOWN, rollDragonWrathLifeDelay } from './HeroDragonWrath.js';
 
 // Rendering sheet: the redesigned clips merged OVER the legacy HERO_SPRITES. Used for
 // both the animator AND _clip() so the new combat state names (cast/parry/parry_counter/
 // air_attack/hurt) resolve to real redesigned clips; any name absent here still falls
 // back to the legacy sheet. Rendering-only — no AI/physics/timing depends on this.
-const HERO_SHEET = { ...HERO_SPRITES, ...HERO_REDESIGN_SPRITES, ...HERO_COMBO_A_SPRITES };
+const HERO_SHEET = {
+    ...HERO_SPRITES, ...HERO_REDESIGN_SPRITES, ...HERO_COMBO_A_SPRITES, ...HERO_DRAGON_WRATH_SPRITES,
+};
+
+// STAGE 8B-3 — the Hero's BODY box inside a sprite frame, in CELLS.
+// The approved DAYBREAK CHAIN combo clips are authored on a PADDED 44x34 canvas —
+// headroom for overhead blades and smears — with the 30x24 hero base pasted at
+// (7,10), so the body still fills the same bottom 30x24 box as every other
+// redesigned clip and drawSprite's feet-bottom anchor self-solves the sprite itself.
+// The body-framing anchors in draw() must measure that BODY box rather than the
+// padded canvas, or they read the empty headroom: the floating HP bar would pop 20px
+// up the instant the Hero swings (and drop back when the chain ends), and the contact
+// shadow would bulge ~50%. Clamping leaves every non-combo clip measuring exactly as
+// before (legacy 14x16 and redesign 30x24 are both already within the box).
+// Render-only: no hitbox, reach or physics extent is derived from these.
+const HERO_BODY_ROWS = 24;
+const HERO_BODY_COLS = 30;
+
 import { PerfMonitor } from '../core/PerfMonitor.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -84,6 +107,7 @@ export const MoveState = Object.freeze({
     AIR_ATTACK: 'AIR_ATTACK',       // airborne DOWN-strike (the pogo strike)
     FEAR: 'FEAR',                   // crumpled on the ground, stunned by a Fear Strike
     COMBO_A: 'COMBO_A',             // STAGE 8C-4 — the MERIDIAN LOOP combo variant (self-contained)
+    DRAGON_WRATH: 'DRAGON_WRATH',   // STAGE 8C-5 — the DRAGON WRATH + COMBO B sequence (self-contained)
 });
 
 // ---------------------------------------------------------------------------
@@ -343,6 +367,25 @@ export class Enemy {
         this._comboA = new HeroComboA(this);
         this._comboACooldown = 0;
 
+        // --- 1c. STAGE 8C-5 — DRAGON WRATH + COMBO B. The Hero's empowered battle-trance:
+        // activation -> transformed WRATH BLADE -> exactly TWO empowered swings -> the
+        // ~1.5 s shouldered crown charge -> DRAGONFALL (arena darken, white flash, giant
+        // Light Eclipse sword, descent, floor impact, base-up dissolution) -> clean exit.
+        // A TEMPORARY state, never a permanent buff: everything it owns lives inside the
+        // controller and is torn down by its idempotent cleanup(). Its own (rarer, longer)
+        // cooldown keeps it an occasional escalation, not a staple. ---
+        this._dragonWrath = new HeroDragonWrath(this);
+        this._dragonWrathCooldown = 0;
+
+        // ONCE-PER-HERO-LIFE availability (see HeroDragonWrath's delay constants).
+        // Both fields are LIFE-LOCAL: main.js builds a brand-new Enemy on every
+        // resurrection, so construction IS the life reset. _resetDragonWrathLife()
+        // re-rolls them explicitly anyway (it also runs from applyStats()), which
+        // keeps the rule intact for any spawn path that reuses an instance.
+        this._dragonWrathUsedThisLife = false;
+        this._dragonWrathEligibility = 0;
+        this._resetDragonWrathLife();
+
         // --- 2. Light-wave magic bookkeeping ---
         this._castIndex = 0;                  // 0..2 (which wave to emit next)
         this._castPhase = 'windup';           // 'windup' | 'emit' | 'recover'
@@ -421,6 +464,7 @@ export class Enemy {
     _breakForIntimidation() {
         this.moveState = MoveState.WALKING;
         if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
+        if (this._dragonWrath) this._dragonWrath.cleanup(); // STAGE 8C-5: tear down a live Dragon Wrath
         this._dashTimer = 0;
         this._attackWindup = 0;
         this._comboIndex = 0;
@@ -515,6 +559,11 @@ export class Enemy {
         this.canJumpPogo = ab.has('pogo') || ab.has('jump') || FEATURES.JUMP_DEFAULT;
 
         if (this.attackHitbox) this.attackHitbox.damage = this.attackDamage;
+
+        // A NEW LIFE begins here (main.js calls this once per resurrection, right
+        // after constructing the Hero): restore Dragon Wrath's single use and roll a
+        // new randomized activation point. Nothing else about availability persists.
+        this._resetDragonWrathLife();
     }
 
     // === Generic dash ======================================================
@@ -651,6 +700,57 @@ export class Enemy {
         this.moveState = MoveState.COMBO_A;
         this._comboACooldown = COMBO_A_COOLDOWN;
         this._comboA.start();
+    }
+
+    // STAGE 8C-5 — DRAGON WRATH + COMBO B selection + entry. The smallest possible
+    // addition to the existing melee choice: one more gated branch alongside Combo A,
+    // on its own chance + its own (longer) cooldown. Grounded-only — the activation,
+    // both swings and the shouldered charge are all standing-ground frames, and the
+    // controller captures the floor line here for the giant sword's TIP pinning.
+    // ONCE PER HERO LIFE. The per-melee-start chance roll is gone: instead each life
+    // rolls ONE randomized eligibility delay (_resetDragonWrathLife), and once that
+    // delay elapses Dragon Wrath simply waits here for the next SAFE melee start.
+    // "Safe" needs no extra checks — this is only ever consulted from the WALKING
+    // branch under _meleeReady(), so the Hero is by construction alive, grounded,
+    // not intimidated/feared, not mid-attack, not in Combo A and not already in
+    // Dragon Wrath. A timer that elapses mid-attack therefore never interrupts it;
+    // the queued use is simply taken at the following opportunity.
+    _canStartDragonWrath() {
+        return (
+            this._dragonWrath &&
+            !this._dragonWrathUsedThisLife &&   // spent for this life — no repeats
+            this._dragonWrathEligibility <= 0 &&
+            this.isGrounded &&
+            this._dragonWrathCooldown <= 0
+        );
+    }
+
+    _startDragonWrath(dir) {
+        // Consume the life's single use FIRST — before the sequence can advance into
+        // any of its visual phases. An interrupt (a landed hit, fear, intimidation,
+        // death or an encounter reset) tears the sequence down but does NOT refund
+        // this flag, so a cancelled Dragon Wrath can never be re-selected to farm the
+        // opener. Only a real death-and-respawn restores the use.
+        this._dragonWrathUsedThisLife = true;
+
+        this.facing = dir;                 // facing LOCKS for the whole sequence (baitable)
+        this.velocityX = 0;
+        this.moveState = MoveState.DRAGON_WRATH;
+        this._dragonWrathCooldown = DRAGON_WRATH_COOLDOWN;
+        this._dragonWrath.start();
+    }
+
+    /**
+     * Start a NEW Hero life for Dragon Wrath: restore the single use and roll a fresh
+     * randomized eligibility point. Called from the constructor (every resurrection
+     * builds a new Enemy) and from applyStats() (the spawn-time scaling hook), so an
+     * unused opportunity from the previous life is discarded rather than carried over.
+     * Deliberately NOT called on attack end, interrupt, cleanup or AI state changes.
+     */
+    _resetDragonWrathLife() {
+        this._dragonWrathUsedThisLife = false;
+        this._dragonWrathEligibility = rollDragonWrathLifeDelay();
+        this._dragonWrathCooldown = 0;
     }
 
     _configureComboHit(i) {
@@ -886,6 +986,7 @@ export class Enemy {
 
         // Cancel everything the Hero was mid-way through.
         if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
+        if (this._dragonWrath) this._dragonWrath.cleanup(); // STAGE 8C-5: tear down a live Dragon Wrath
         this.knockbackTimer = 0;
         this._dashTimer = 0;
         this._attackWindup = 0;
@@ -922,6 +1023,8 @@ export class Enemy {
         if (this.dashCooldown > 0) this.dashCooldown--;
         if (this._comboCooldown > 0) this._comboCooldown--;
         if (this._comboACooldown > 0) this._comboACooldown--;
+        if (this._dragonWrathCooldown > 0) this._dragonWrathCooldown--;
+        if (this._dragonWrathEligibility > 0) this._dragonWrathEligibility--; // this life's one randomized opening
         if (this._castCooldown > 0) this._castCooldown--;
         if (this._jumpCooldown > 0) this._jumpCooldown--;
         if (this._airAttackCooldown > 0) this._airAttackCooldown--;
@@ -1028,11 +1131,16 @@ export class Enemy {
                     // f) deterministic melee / approach / spacing
                     if (this._meleeReady()) {
                         if (edgeGap <= COMBO.GAP_PX) {
-                            // In range: usually the 4-hit DAYBREAK chain, but occasionally the
-                            // MERIDIAN LOOP variant (Combo A) stands in. Combo A NEVER replaces
-                            // the chain — it is gated behind its own chance + cooldown so it
-                            // stays a spice, not the staple.
-                            if (this._canStartComboA()) this._startComboA(dirToPlayer);
+                            // In range: usually the 4-hit DAYBREAK chain, but occasionally an
+                            // advanced sequence stands in. NEITHER replaces the chain — each is
+                            // gated so they stay spice, not the staple. DRAGON WRATH + COMBO B
+                            // is checked first because it is by far the rarest: ONCE PER HERO
+                            // LIFE, at a randomized point in that life, versus Combo A's ongoing
+                            // 0.35 / ~5 s roll. This is the "next safe opportunity" that a
+                            // queued Dragon Wrath waits for. Combo A's own weight is unchanged —
+                            // on all but one melee start per life this line simply falls through.
+                            if (this._canStartDragonWrath()) this._startDragonWrath(dirToPlayer);
+                            else if (this._canStartComboA()) this._startComboA(dirToPlayer);
                             else this._startCombo(dirToPlayer);
                         } else if (this.canDash(dist)) {
                             this._startDash(dirToPlayer);                  // big gap -> dash in
@@ -1223,8 +1331,27 @@ export class Enemy {
                     // facing here; the post-switch integration and main.js floor/wall
                     // resolution then apply exactly as for every other state. When the
                     // sequence finishes (or self-cleans on interrupt) it clears `active`.
-                    this._comboA.update();
+                    // targetX is handed in so the controller can take its two
+                    // directional snapshots (chase start / pillar start) against the
+                    // Boss's CURRENT side — see HeroComboA._bossDir().
+                    this._comboA.update(targetX);
                     if (!this._comboA.active) this.moveState = MoveState.WALKING;
+                    break;
+                }
+
+                case MoveState.DRAGON_WRATH: {
+                    // STAGE 8C-5 — the whole DRAGON WRATH sequence runs inside the
+                    // controller on its own 201-tick master clock: activation, the two
+                    // empowered swings, the 1.5 s crown charge and the DRAGONFALL
+                    // finisher. It writes velocityX / facing here; the post-switch
+                    // integration and main.js floor/wall resolution then apply exactly
+                    // as for every other state. When the sequence finishes (or self-cleans
+                    // on interrupt / death / reset) it clears `active` and we fall back to
+                    // ordinary locomotion — the state is TEMPORARY by construction.
+                    // No Boss position is handed in: the finisher's impact column is
+                    // committed to the Hero's own forward line, never homed on the Boss.
+                    this._dragonWrath.update();
+                    if (!this._dragonWrath.active) this.moveState = MoveState.WALKING;
                     break;
                 }
             }
@@ -1258,6 +1385,23 @@ export class Enemy {
 
     get isDashing() { return this.moveState === MoveState.DASHING; }
     get isDodging() { return this.iFrames > 0 && this.moveState === MoveState.DASHING; }
+
+    // STAGE 8C-4 V2 (C4): while Combo A is running the Hero ignores Boss BODY-CONTACT
+    // collision damage ONLY. main.js handleCombat() reads this to skip the body-vs-body
+    // path (c) — it must NOT gate the weapon / projectile paths (a), which still damage
+    // and interrupt the combo via takeDamage(). Derived straight from the controller's
+    // active flag, so the window opens on start() and closes on every cleanup path
+    // (completion, normal-attack interrupt, fear, death, reset) with no extra state.
+    get isBodyContactImmune() { return !!(this._comboA && this._comboA.active); }
+
+    // STAGE 8C-5 — the DRAGON WRATH screen treatment (arena value-dip + cinematic
+    // letterbox + the brief white flash), surfaced for main.js's screen-space pass.
+    // Render-only, and DERIVED: it is null unless the sequence is live, so a replaced,
+    // dead or reset Hero can never leave a stale darken or a stuck flash on screen —
+    // there is no separate overlay flag anyone could forget to clear.
+    get dragonWrathScreenFx() {
+        return this._dragonWrath ? this._dragonWrath.screenFx : null;
+    }
 
     // --- Fear status surface (read by other systems; e.g. the Boss's dark aura) ---
     // Two independent clocks (see triggerFear): a 0.5s knockdown STUN nested inside
@@ -1306,6 +1450,7 @@ export class Enemy {
         // A hit interrupts ANY action in progress.
         this.moveState = MoveState.WALKING;
         if (this._comboA) this._comboA.cleanup(); // STAGE 8C-4: tear down a live Combo A
+        if (this._dragonWrath) this._dragonWrath.cleanup(); // STAGE 8C-5: tear down a live Dragon Wrath
         this._dashTimer = 0;
         this._attackWindup = 0;
         this._comboPhaseTimer = 0;
@@ -1335,10 +1480,53 @@ export class Enemy {
         return 'idle';
     }
 
+    // STAGE 8B-3 — HERO COMBO "DAYBREAK CHAIN" (approved 8B-1) clip selection.
+    // The four hits — H1 FIRST LIGHT / H2 GILDED CREST / H3 SUNPIERCE / H4 SOLSTICE —
+    // are PHASE-INDEXED off the live combo FSM (_comboIndex picks the hit,
+    // _comboPhase / _comboPhaseTimer pick the frame) rather than free-run on a fixed
+    // hold. A free-running animator drifts the HIT frame off the real active window
+    // and the impact weight collapses.
+    //
+    // The HIT frame (A1B/A2B/A3B/A4B) is HELD for the back half of each active window.
+    // That hold IS the impact weight and the whole rhythm of the chain — it is the one
+    // thing to preserve if these thresholds are ever retuned.
+    //
+    // Reads the FSM; never writes it. COMBO.HITS windows (5/4/7, 3/4/7, 3/4/8, 6/6/10)
+    // are the source of the thresholds below and are NOT touched — timers count DOWN,
+    // so "timer > n" is the EARLY part of a window and the small tail is the hold.
+    // Falls back to the legacy free-run 'attack' clip if a combo clip is missing.
+    _comboAnim() {
+        const hit = this._comboIndex;
+        const name = `heroCombo${hit + 1}`;
+        if (!HERO_SHEET[name]) return { name: this._clip('attack'), hold: 3 };
+
+        // ATTACK_WINDUP is the telegraph; ATTACKING covers both 'active' and 'link'.
+        const phase = this.moveState === MoveState.ATTACK_WINDUP ? 'windup' : this._comboPhase;
+        const t = this._comboPhaseTimer;
+        let index;
+        if (hit === COMBO.HITS.length - 1) {
+            // H4 SOLSTICE (6f) — the launcher, the deliberate mirror of the Boss's H4
+            // Eclipse Breaker: the Boss rams the floor, the Hero tears UP out of it.
+            // W4A COIL f0 / W4B IGNITE f1 / A4A ASCENT f2 / A4B HIT f3 (held) /
+            // P4 PEAK f4 (halo snap) / S4 SETTLE f5 (the seam back into locomotion).
+            if (phase === 'windup')      index = t > 3 ? 0 : 1;
+            else if (phase === 'active') index = t > 3 ? 2 : 3;
+            else                         index = t > 5 ? 4 : 5;
+        } else {
+            // H1..H3 (4f each) — W f0 / ACTIVE-EARLY f1 / HIT f2 (held) / LINK f3.
+            if (phase === 'windup')      index = 0;
+            else if (phase === 'active') index = t > 2 ? 1 : 2;
+            else                         index = 3;
+        }
+        return { name, hold: 3, index };
+    }
+
     _animState() {
         const ms = this.moveState;
         // STAGE 8C-4 — MERIDIAN LOOP owns its frame (index-driven, per its step clock).
         if (ms === MoveState.COMBO_A && this._comboA.active) return this._comboA.animFrame();
+        // STAGE 8C-5 — DRAGON WRATH owns its frame too (index-driven, per its master clock).
+        if (ms === MoveState.DRAGON_WRATH && this._dragonWrath.active) return this._dragonWrath.animFrame();
         if (this.fearStunTimer > 0) return { name: this._clip('hurt', 'fall', 'roll'), hold: 6 };
         // STAGE 7A-1: braced standoff — only once the shove has settled and the Hero
         // is planted. Mid-shove / airborne it still reads as fall/run, so the push
@@ -1351,9 +1539,7 @@ export class Enemy {
         if (ms === MoveState.PARRY_STANCE)  return { name: this._clip('parry', 'guard', 'idle'), hold: 8 };
         if (ms === MoveState.CASTING)       return { name: this._clip('cast', 'attack'), hold: 4 };
         if (ms === MoveState.AIR_ATTACK)    return { name: this._clip('air_attack', 'attack'), hold: 3 };
-        if (ms === MoveState.ATTACKING || ms === MoveState.ATTACK_WINDUP) {
-            return { name: this._clip('attack'), hold: 3 };
-        }
+        if (ms === MoveState.ATTACKING || ms === MoveState.ATTACK_WINDUP) return this._comboAnim();
         if (ms === MoveState.DASHING) {
             const defensive = this._dashIsDodge || this.iFrames > 0; // dodge / back-dash
             return defensive ? { name: this._clip('roll', 'dash'), hold: 2 } : { name: this._clip('dash'), hold: 3 };
@@ -1367,10 +1553,19 @@ export class Enemy {
     }
 
     draw(ctx) {
-        const { name, hold } = this._animState();
+        const { name, hold, index } = this._animState();
         this.anim.set(name, hold);
-        this.anim.tick();
-        const frame = this.anim.current();
+        // The melee-combo clips pick their frame by INDEX (driven by the combo FSM, per
+        // _comboAnim); every other clip free-runs on the animator's hold as before.
+        // Same idiom as the Boss's approved 8A-2 combo port.
+        let frame;
+        if (index != null) {
+            const clip = this.anim.sprites[name];
+            frame = (clip && clip[index]) || this.anim.current();
+        } else {
+            this.anim.tick();
+            frame = this.anim.current();
+        }
         if (!frame) return;
 
         // REDESIGN (VISUAL_REDESIGN_BIBLE.md §7 Step 4): the animator (HERO_SHEET) merges
@@ -1391,12 +1586,17 @@ export class Enemy {
         const inCounter = this.moveState === MoveState.PARRY_COUNTER;
         const dodging = this.iFrames > 0 && !inCounter && this.fearStunTimer <= 0;
 
+        // The Hero's body box in PIXELS (see HERO_BODY_ROWS/COLS): the combo clips'
+        // padded canvas is excluded so every anchor below stays put across the chain.
+        const bodyH = Math.min(frame.length, HERO_BODY_ROWS) * pixelSize;
+        const bodyW = Math.min(frame[0].length, HERO_BODY_COLS) * pixelSize;
+
         // Sprite VISUAL centre. The 48px art is taller than the 30px collision box,
         // so this.y (the collision centre) sits ~9px BELOW the figure's middle. Body-
-        // framing VFX (dash streaks, parry ring, counter burst, dodge ticks, sword arc)
-        // anchor HERE so they read as centred on the knight instead of hugging its hips
+        // framing VFX (dash streaks, parry ring, counter burst, dodge ticks) anchor
+        // HERE so they read as centred on the knight instead of hugging its hips
         // and bulging below its feet. Render-only: hitboxes stay on this.y (unchanged).
-        const bodyCY = feetY - (frame.length * pixelSize) / 2;
+        const bodyCY = feetY - bodyH / 2;
         this._bodyCY = bodyCY;
 
         // Tint: white hit-flash; dazed grey while feared; white/icy-blue dash-windup flicker.
@@ -1431,9 +1631,10 @@ export class Enemy {
             });
         }
 
-        // Soft contact shadow, only while actually on the ground.
+        // Soft contact shadow, only while actually on the ground. Sized off the BODY
+        // width so the combo's wider canvas doesn't swell the shadow mid-swing.
         if (this.isGrounded) {
-            SpriteManager.drawShadow(ctx, this.x, feetY, frame[0].length * pixelSize * 0.7);
+            SpriteManager.drawShadow(ctx, this.x, feetY, bodyW * 0.7);
         }
 
         PerfMonitor.start('enemy sprite draw');
@@ -1442,7 +1643,9 @@ export class Enemy {
             alpha: dodging ? 0.55 : 1,
         });
         PerfMonitor.end('enemy sprite draw');
-        this._spriteTopY = res ? res.originY : null;
+        // Top of the BODY, not of the frame: the HP bar and the fear-stun stars hang off
+        // this, and the combo canvas's headroom would otherwise lift them 20px mid-chain.
+        this._spriteTopY = res ? Math.round(feetY - bodyH) : null;
 
         // Jump takeoff / landing support VFX. Render-only ground-transition detect:
         // reads isGrounded/velocityY, never writes physics.
@@ -1466,8 +1669,15 @@ export class Enemy {
         if (!PerfMonitor.shouldSkip('enemyParryVFX')) {
             if (dodging) this.drawDodgeAura(ctx);
             if (this.moveState === MoveState.ATTACK_WINDUP) this.drawTelegraph(ctx);
-            // The pixel-art cold-sanctity sword-arc rides the melee combo's active frames.
-            if (this.moveState === MoveState.ATTACKING && this._comboPhase === 'active') this.drawSlashArc(ctx);
+            // STAGE 8B-3 — the runtime melee sword-arc hook is RETIRED. The approved
+            // DAYBREAK CHAIN redesign BAKES the LIGHT ECLIPSE smears/trails directly into
+            // the heroCombo1..4 frames (behind the silhouette), so firing drawSlashArc
+            // here too would DOUBLE every trail — and it would put the old BLUE
+            // cold-sanctity crescent back into a white+gold moment, breaking the family's
+            // first law. The trail now follows the blade via the baked frame data.
+            // drawSlashArc stays defined but unused (like the Boss's drawBossSlash after
+            // its own 8A-2 retirement). The pogo/air-attack drawHolySlash seam in
+            // drawPogoStrike is SEPARATE and deliberately still live.
             if (this.moveState === MoveState.PARRY_STANCE) this.drawParryAura(ctx);
             if (inCounter) this.drawCounterBurst(ctx);
             if (this.moveState === MoveState.AIR_ATTACK) this.drawPogoStrike(ctx);
@@ -1479,7 +1689,7 @@ export class Enemy {
             if (this._wallVfxTimer > 0) {
                 SpriteManager.drawWallRepulse(ctx, this._wallVfxX, feetY, this._wallVfxDir, {
                     progress: 1 - this._wallVfxTimer / INTIMIDATION.WALL_VFX_FRAMES,
-                    height: frame.length * pixelSize,
+                    height: bodyH,
                 });
             }
             if (this._intimidated && this.isGrounded && this._intimPushTimer <= 0 &&
@@ -1488,6 +1698,19 @@ export class Enemy {
             }
         }
         PerfMonitor.end('enemy parry aura / counter VFX');
+
+        // STAGE 8C-5 — DRAGON WRATH world-space effects: the white flash at its sky
+        // point and the giant Light Eclipse sword. Unlike Combo A's grids these draw
+        // IN FRONT of the body, per the approved layering contract (layer 5 flash /
+        // layer 6 giant sword, both above the Hero at layers 3-4) — the sword falls
+        // between the camera and the arena and must never be hidden behind the Hero.
+        // The Hero's own radiance, crown halo, streamers and transformed blade are
+        // BAKED into the body frames above, so nothing is drawn twice.
+        if (this._dragonWrath.active) {
+            PerfMonitor.start('enemy dragonWrath fx');
+            if (!PerfMonitor.shouldSkip('enemyProjectiles')) this._dragonWrath.drawWorldEffects(ctx);
+            PerfMonitor.end('enemy dragonWrath fx');
+        }
 
         PerfMonitor.start('health bars');
         if (!PerfMonitor.shouldSkip('healthBars')) this.drawHealthBar(ctx);
@@ -1520,6 +1743,12 @@ export class Enemy {
     // The Hero's pixel-art cold-sanctity sword-arc — a white-core blue crescent that
     // sweeps through the ACTIVE frames of each melee-combo hit (gather -> crisp strike
     // -> shard dissolve, via `progress`). Reads combo state ONLY; finisher = double edge.
+    //
+    // STAGE 8B-3 — RETIRED and no longer called: the approved DAYBREAK CHAIN bakes its
+    // LIGHT ECLIPSE trail into the heroCombo1..4 frames, so this would double the trail
+    // AND readmit blue into a white+gold moment. Kept (like the Boss's drawBossSlash)
+    // because drawHolySlash is still live for the pogo strike, and this is the reference
+    // for how the melee seam drove it. Do not re-enable it for the melee combo.
     drawSlashArc(ctx) {
         const h = COMBO.HITS[this._comboIndex];
         if (!h) return;

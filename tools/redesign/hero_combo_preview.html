@@ -1,0 +1,93 @@
+<!doctype html>
+<!--
+  Stage 8B-3 — LIVE-RENDER preview of the integrated HERO COMBO.
+  Serve the repo root (npm start) and open /tools/redesign/hero_combo_preview.html.
+
+  This is a REVIEW surface, not a test: it imports the REAL src/core/SpriteManager.js
+  and draws the REAL integrated heroCombo1..4 clips through the REAL drawSprite at the
+  REAL HERO_IDLE_PIXEL scale, on the arena's own floor/backdrop tones. It proves the
+  pixels that the headless harness cannot see: that the merged LIGHT keys resolve, that
+  the light reads white+gold against the night hall, that the feet plant on the floor
+  line, and that the facing mirror is clean. The FSM sequencing is proven separately by
+  hero_combo_harness.mjs. Nothing here is loaded by the game.
+-->
+<meta charset="utf-8">
+<title>8B-3 — Hero Combo live-render preview</title>
+<style>
+  body { margin: 0; background: #0d0f18; color: #8b93a7; font: 12px ui-monospace, monospace; padding: 16px; }
+  h1 { font-size: 13px; color: #f2c94e; letter-spacing: .08em; margin: 0 0 4px; }
+  p  { margin: 0 0 14px; }
+  .row { margin-bottom: 10px; }
+  .lbl { color: #7c88a0; margin-bottom: 3px; }
+  canvas { display: block; image-rendering: pixelated; background: #141826; border: 1px solid #232a3d; }
+</style>
+<h1>STAGE 8B-3 — HERO COMBO "DAYBREAK CHAIN" — RENDERED FROM THE LIVE src/</h1>
+<p id="meta">loading…</p>
+<div id="out"></div>
+<script type="module">
+import { SpriteManager, HERO_REDESIGN_SPRITES, HERO_REDESIGN_PALETTE, HERO_IDLE_PIXEL }
+  from '../../src/core/SpriteManager.js';
+
+const PX = HERO_IDLE_PIXEL;               // the live on-screen hero scale
+const CLIPS = [
+  ['heroCombo1', 'H1 FIRST LIGHT  — glint only, the light is asleep', ['W1 GLINT', 'A1A SHEAR', 'A1B HIT (hold)', 'L1 FOLLOW']],
+  ['heroCombo2', 'H2 GILDED CREST — gold enters the smear',           ['W2 DIP', 'A2A SHEAR', 'A2B HIT (hold)', 'L2 FLOAT']],
+  ['heroCombo3', 'H3 SUNPIERCE    — the cadence break (thrust)',      ['W3 COIL', 'A3A DRIVE', 'A3B HIT (hold)', 'L3 RECOIL']],
+  ['heroCombo4', 'H4 SOLSTICE     — finisher / launcher',             ['W4A COIL', 'W4B IGNITE', 'A4A ASCENT', 'A4B HIT (hold)', 'P4 PEAK', 'S4 SETTLE']],
+];
+
+const out = document.getElementById('out');
+let drawn = 0;
+
+for (const [name, title, tags] of CLIPS) {
+  const frames = HERO_REDESIGN_SPRITES[name];
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<div class="lbl">${title}&nbsp; — ${tags.join(' / ')}</div>`;
+  const cell = frames[0][0].length * PX + 18;
+  const cv = document.createElement('canvas');
+  cv.width = cell * frames.length + 8;
+  cv.height = frames[0].length * PX + 30;
+  const c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+
+  // The arena floor line, so feet-plant and floor-clip are judgeable at a glance.
+  const floorY = 8 + frames[0].length * PX;
+  c.fillStyle = '#1b2130';
+  c.fillRect(0, floorY, cv.width, cv.height - floorY);
+  c.fillStyle = '#2a3346';
+  c.fillRect(0, floorY, cv.width, 2);
+
+  frames.forEach((f, i) => {
+    // Exactly the live call: feet-bottom anchored, HERO_REDESIGN_PALETTE, real scale.
+    SpriteManager.drawSprite(c, f, 8 + cell * i + (f[0].length * PX) / 2, floorY, {
+      pixelSize: PX, palette: HERO_REDESIGN_PALETTE, flip: false,
+    });
+    drawn++;
+  });
+  row.appendChild(cv);
+  out.appendChild(row);
+}
+
+// Mirror check — H4's HIT frame in both facings, side by side.
+const mrow = document.createElement('div');
+mrow.className = 'row';
+mrow.innerHTML = '<div class="lbl">MIRROR — H4 A4B HIT, facing RIGHT (authored) vs facing LEFT (runtime flip)</div>';
+const mc = document.createElement('canvas');
+mc.width = 44 * PX * 2 + 40; mc.height = 34 * PX + 20;
+const m = mc.getContext('2d');
+m.imageSmoothingEnabled = false;
+const hit = HERO_REDESIGN_SPRITES.heroCombo4[3];
+SpriteManager.drawSprite(m, hit, 10 + 44 * PX / 2, 8 + 34 * PX, { pixelSize: PX, palette: HERO_REDESIGN_PALETTE, flip: false });
+SpriteManager.drawSprite(m, hit, 30 + 44 * PX * 1.5, 8 + 34 * PX, { pixelSize: PX, palette: HERO_REDESIGN_PALETTE, flip: true });
+mrow.appendChild(mc);
+out.appendChild(mrow);
+
+const stray = new Set();
+for (const [name] of CLIPS) for (const f of HERO_REDESIGN_SPRITES[name]) for (const r of f) for (const ch of r)
+  if (!(ch in HERO_REDESIGN_PALETTE)) stray.add(ch);
+
+document.getElementById('meta').textContent =
+  `${drawn} frames rendered from the live sheet at ${PX}px · unresolved palette keys: ${stray.size ? [...stray].join(',') : 'none'}`;
+window.__preview = { drawn, stray: [...stray] };
+</script>

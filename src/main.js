@@ -26,6 +26,15 @@ const PAN_DURATION = 1.1; // seconds per cinematic camera pan
 const HITSTOP_S = 0.35;   // beat to register the kill before the camera leaves
 const NEMESIS_UI_S = 3.0; // focused pause while the Nemesis card is up
 
+// STAGE 8C-5 — DRAGON WRATH screen-treatment strengths (render-only; see draw()).
+// The Hero's controller owns the 0..1 RAMPS on the approved clock — these are just
+// how strong each one is allowed to get. The dip is deliberately partial so the room
+// stays readable, and the flash peak stays under full white so the scene is never
+// truly lost even on the whiteout beat.
+const DRAGON_WRATH_DIM_MAX = 0.55;      // peak arena value dip
+const DRAGON_WRATH_LETTERBOX = 0.075;   // bar height as a fraction of the viewport
+const DRAGON_WRATH_FLASH_MAX = 0.88;    // peak white-flash alpha
+
 function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
@@ -140,6 +149,10 @@ function spawnEnemy() {
     const spawnX = 100;
 
     enemy = new Enemy(spawnX, 0);
+    // STAGE 8C-4 V2 (C3): give the Hero the arena width so Combo A can arena-clamp its
+    // forward pillar chain (a render-only world effect with no clampToWorld backstop)
+    // and its diagonal-plunge landing target. Set on every (re)spawn; harmless elsewhere.
+    enemy.worldWidth = WORLD_WIDTH;
     // Scale the Hero to the current encounter (stats + unlocked abilities) before
     // it enters the arena. active_mechanics carries "dash_roll" from encounter 5 on.
     const encounter = getEncounter(currentEncounterId);
@@ -443,7 +456,14 @@ function handleCombat() {
     // (it is NEVER passed to a takeDamage call here). Gated by the Hero's knockback
     // / i-frames, and skipped if the Boss's slash already hit this frame, so a
     // sustained overlap can't stack with the weapon hit or drain HP every frame.
+    //
+    // STAGE 8C-4 V2 (C4): a Hero running Combo A ignores THIS body-contact path only
+    // (isBodyContactImmune) — the collision deals no damage and cannot interrupt the
+    // combo. This is deliberately the ONLY path gated: the weapon / projectile paths
+    // (a) above are untouched, so Boss strikes, projectiles, charges, lasers and
+    // explosions still damage the Hero and interrupt Combo A exactly as before.
     if (!enemyTookWeaponHit &&
+        !enemy.isBodyContactImmune &&
         enemy.knockbackTimer <= 0 &&
         enemy.iFrames <= 0 &&
         entitiesIntersect(player, enemy)) {
@@ -463,11 +483,29 @@ function handleCombat() {
 // The Hero died: hand off to the cinematic state machine, which plays the
 // hit-stop, resurrects a stronger Hero, and rolls the Nemesis overlay.
 function handleEnemyDefeated() {
+    // STAGE 8C-5 — DRAGON WRATH must NOT survive the Hero's death. Force the cleanup
+    // here (rather than waiting for spawnEnemy() to replace the Enemy) so the corpse
+    // never holds a darkened arena, a stuck flash or a giant sword through the
+    // hit-stop, the camera pan and the Nemesis card. cleanup() is idempotent.
+    if (enemy && enemy._dragonWrath) enemy._dragonWrath.cleanup();
+    // STAGE 8C-4 — same for Combo A: the corpse must not carry the corridor bed, the
+    // pillar chain, the reform halo or a gravity override through the death cinematic.
+    // Landed hits already tear it down via takeDamage(); this is the idempotent backstop.
+    if (enemy && enemy._comboA) enemy._comboA.cleanup();
     changeState(State.ENEMY_DEAD);
 }
 
 // The Boss died: stop the simulation. draw() renders the game-over banner.
 function handleGameOver() {
+    // Same reasoning on the other outcome: the simulation stops here, so a Dragon
+    // Wrath caught mid-charge would freeze its screen treatment over the game-over
+    // banner forever. Tear it down before the terminal state.
+    if (enemy && enemy._dragonWrath) enemy._dragonWrath.cleanup();
+    // STAGE 8C-4 — and Combo A, which the Boss's death does NOT interrupt (nothing calls
+    // enemy.takeDamage here). Without this the simulation stops mid-sequence and the
+    // still-`active` controller freezes its pillar chain / corridor / reform residue over
+    // the game-over banner for good, with the Hero's gravity still overridden to 0.
+    if (enemy && enemy._comboA) enemy._comboA.cleanup();
     changeState(State.GAMEOVER);
 }
 
@@ -490,6 +528,20 @@ function draw() {
     // isolate whether it's the FPS culprit. Draw-only — never touches physics.
     if (!PerfMonitor.shouldSkip('throneRoom')) {
         throneRoom.render(ctx, camera, width, height, { skipVignette: true });
+    }
+
+    // STAGE 8C-5 — DRAGON WRATH arena darkening (approved layering contract layer 1).
+    // Drawn AFTER the arena and BEFORE the camera transform + entities, so it dips the
+    // value of the background / panorama / masonry ONLY: the Hero, the transformed
+    // blade, the radiance streamers, the flash and the giant sword are all drawn after
+    // this and read BRIGHT against the darkened room. A value dip, not an opaque wash —
+    // every important silhouette survives it. Fully render-only, and it lifts itself
+    // (the fx object is derived from the live sequence, so it is null the moment
+    // Dragon Wrath ends, is interrupted, dies or is reset).
+    const wrathFx = enemy ? enemy.dragonWrathScreenFx : null;
+    if (wrathFx && wrathFx.dim > 0) {
+        ctx.fillStyle = `rgba(6, 5, 9, ${(wrathFx.dim * DRAGON_WRATH_DIM_MAX).toFixed(3)})`;
+        ctx.fillRect(0, 0, width, height);
     }
 
     PerfMonitor.start('camera transform setup');
@@ -538,6 +590,30 @@ function draw() {
             intensity: player.afkVignette,
             phase: player.cursePhase,
         });
+    }
+
+    // STAGE 8C-5 — the rest of the DRAGON WRATH screen treatment, in SCREEN space
+    // after the camera transform has been restored (so it frames the viewport, not the
+    // world). Two parts, both strictly bounded by the approved clock:
+    //   LETTERBOX  the thin cinematic bars from the bigsword reference frame, riding
+    //              the same ramp as the value dip. Deliberately NOT full-height UI
+    //              chrome — they frame the shot and retract with the darken.
+    //   FLASH      the strong white/white-gold beat at tick 154. The pixel-art burst
+    //              grid is drawn in world space by the Hero (behind the giant sword);
+    //              THIS is the screen-wide beat that gives it its punch. It is <= 6
+    //              ticks with <= 2 at full, and its own ramp guarantees it CLEARS —
+    //              it can never stick and white out the game.
+    if (wrathFx) {
+        if (wrathFx.letterbox > 0) {
+            const bar = Math.round(height * DRAGON_WRATH_LETTERBOX * wrathFx.letterbox);
+            ctx.fillStyle = '#060509';
+            ctx.fillRect(0, 0, width, bar);
+            ctx.fillRect(0, height - bar, width, bar);
+        }
+        if (wrathFx.flash > 0) {
+            ctx.fillStyle = `rgba(255, 253, 244, ${(wrathFx.flash * DRAGON_WRATH_FLASH_MAX).toFixed(3)})`;
+            ctx.fillRect(0, 0, width, height);
+        }
     }
 
     if (gameState === State.GAMEOVER) {

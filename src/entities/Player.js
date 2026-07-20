@@ -42,7 +42,11 @@ const COMBO = Object.freeze({
 const FLAME  = Object.freeze({ width: 64, height: 56, frames: 80, speed: 9, spawnAhead: 56, damage: 80, knockback: 14 });
 // Hit 4 — Explosive Finisher: a fast forward dash, then a massive circular blast.
 const FINISH = Object.freeze({ dashFrames: 10, dashSpeed: 30 });
-const EXPL   = Object.freeze({ size: 210, frames: 26, ahead: 24, damage: 160, knockback: 26 });
+// `ahead` seats the blast CORE just past the Boss's leading edge (the strike/impact
+// zone) rather than on his torso, so the detonation reads as the finisher landing in
+// front of him. `drawPixel` scales the DRAWN detonation (visual-only; the AABB stays
+// `size`) so the burst reads slightly taller than the ~144px Boss body.
+const EXPL   = Object.freeze({ size: 210, frames: 26, ahead: 52, drawPixel: 5, damage: 160, knockback: 26 });
 // REQUIREMENT 2 — Diagonal Air Dive + landing (Fear Strike) shockwave.
 const DIVE   = Object.freeze({ freeze: 12, vx: 11, vy: 21 });
 const SHOCK  = Object.freeze({ width: 210, height: 92, frames: 22, damage: 90, knockback: 22 });
@@ -1199,6 +1203,11 @@ export class Player {
             this._finisherDashTimer--;
             this.velocityY = 0;
             this.x += this.velocityX;
+            // PLANT the finisher: when the dash ends, kill the forward momentum so the
+            // Boss commits in place at the impact point instead of coasting forward on
+            // friction through recovery — which used to slide him PAST the stationary
+            // detonation and leave the blast reading "behind" him.
+            if (this._finisherDashTimer === 0) this.velocityX = 0;
         } else {
             // Grounded slide: no directional input; friction bleeds the step-forward
             // momentum to a stop; gravity keeps the Boss pinned (flat arena).
@@ -2037,7 +2046,12 @@ export class Player {
                     const floorY = this.y + this.halfHeight;
                     const f = Math.floor(prog * EXPL.frames);
                     const detIdx = f < 6 ? 0 : f < 14 ? 1 : f < 20 ? 2 : 3;
-                    SpriteManager.drawComboDetonation(ctx, p.x, floorY, detIdx, { flip: p.facing === -1 });
+                    // EXPL.drawPixel > BOSS_IDLE_PIXEL enlarges the burst so it reads a
+                    // touch taller than the Boss body; drawComboDetonation keeps it
+                    // floor-pinned (FLOOR_ROW) + core-centred (CX mirror) at any scale.
+                    SpriteManager.drawComboDetonation(ctx, p.x, floorY, detIdx, {
+                        flip: p.facing === -1, pixelSize: EXPL.drawPixel,
+                    });
                 }
                 PerfMonitor.end('player projectiles / dark flame');
             } else if (layer === 'over' && p.kind === 'laser') {
